@@ -1,0 +1,36 @@
+
+
+
+# This command calls the `create_proposal` function in the `dashboard` module of the specified package.
+sui client call \
+    --package 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae \
+    --module dashboard \
+    --function create_proposal \
+    --args "proposal 1" "proposal description" 1774518152 \
+    --gas-budget 100000000
+
+
+sui client ptb \
+  --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+  '" Proosal 2 "' '" proposal description 2 "' 1774518152
+
+
+# this creates 4 proposals in one transaction
+sui client ptb \
+ --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+ '" Proosal 3 "' '" proposal description 3 "' 1774518152 \
+ --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+ '" Proosal 4 "' '" proposal description 4 "' 1774518152 \
+ --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+ '" Proosal 4 "' '" proposal description 4 "' 1774518152 \
+ --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+ '" Proosal 4 "' '" proposal description 4 "' 1774518152
+
+
+sui client ptb \
+  --move-call 0x226bc26a396add43dbd8f0b9ffaca41de1ad076ce797164a95431ec221f4c0ae::dashboard::create_proposal \
+  '" Proosal 5 "' '" proposal description 5 "' 1774518152 \
+  --split-coins gas "[1000]" \
+  --assign coin \
+  --transfer-objects "[coin]" @0x0xf8be2230b4b600f144a975715f449f83c8f82f2c708c65b2b949785b316ac00f
+  --gas-budget 100000000
