@@ -32,5 +32,5 @@ sui client ptb \
   '" Proosal 5 "' '" proposal description 5 "' 1774518152 \
   --split-coins gas "[1000]" \
   --assign coin \
-  --transfer-objects "[coin]" @0x0xf8be2230b4b600f144a975715f449f83c8f82f2c708c65b2b949785b316ac00f
+  --transfer-objects "[coin]" @0xf8be2230b4b600f144a975715f449f83c8f82f2c708c65b2b949785b316ac00f
   --gas-budget 100000000
