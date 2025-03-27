@@ -47,7 +47,7 @@ public struct Proposal has key {
 /// * Records the creator's address from the transaction context
 /// * Initializes an empty voter registry to track who has already voted
 /// * Shares the proposal object, making it accessible to all users in the network
-public fun create_proposal(
+public fun create(
     title: String,
     description: String,
     expiration: u64,
