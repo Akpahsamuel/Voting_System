@@ -1,8 +1,8 @@
 
-/// Module: voting_system
-module voting_system::dashboard{
 
-use std::string::String;
+module voting_system::proposal {
+
+ use std::string::String;
 
 
 
@@ -83,3 +83,19 @@ public fun create_proposal(
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
