@@ -37,6 +37,13 @@ fun test_module_init() {
 
     scenario.next_tx(creator);
     {
+        let dashboard = scenario.take_shared<Dashboard>();
+        assert!(dashboard.proposals_ids.is_empty());
+        test_scenario::return_shared(dashboard);
+    };
+
+    scenario.next_tx(creator);
+    {
       let title = b"Hi".to_string();
       let desc = b"There".to_string();
       proposal::create(title, desc, 2000000000, scenario.ctx());
@@ -48,5 +55,6 @@ fun test_module_init() {
     let functionResult = 1;
 
     assert!(functionResult == expectedValue);
-} 
+}
+
 }
