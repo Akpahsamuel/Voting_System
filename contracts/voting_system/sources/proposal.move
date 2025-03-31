@@ -3,6 +3,7 @@
 module voting_system::proposal {
 
  use std::string::String;
+ use voting_system::dashboard::AdminCap;
 
 
 
@@ -48,6 +49,7 @@ public struct Proposal has key {
 /// * Initializes an empty voter registry to track who has already voted
 /// * Shares the proposal object, making it accessible to all users in the network
 public fun create(
+    _admin_cap: &AdminCap,
     title: String,
     description: String,
     expiration: u64,

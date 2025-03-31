@@ -1,20 +1,31 @@
 
 #[test_only]
 module voting_system::voting_system_tests{
+    use sui::test_scenario;
+    use voting_system::proposal::{Self, Proposal};
+    use voting_system::dashboard::AdminCap;
 
 
 #[test]
 fun test_create_proposal(){
-    use sui::test_scenario;
-    use voting_system::proposal::{Self, Proposal};
+    
 
     let user = @0xCA;
-
     let mut scenario = test_scenario::begin(user);
+    let admin_cap = scenario.take_from_sender<AdminCap>();
     {
         let title = b"Hi".to_string();
         let desc = b"There".to_string();
-        proposal::create(title, desc, 2000000000, scenario.ctx());
+        proposal::create(
+            &admin_cap,
+            title, 
+            desc, 
+            2000000000, 
+            scenario.ctx()
+            );
+
+
+        test_scenario::return_to_sender(&scenario, admin_cap);    
     };
 
     scenario.next_tx(user);
