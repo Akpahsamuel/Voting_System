@@ -26,7 +26,7 @@ fun init(ctx: &mut TxContext) {
         AdminCap {id: object::new(ctx)},
         ctx.sender()
     );
-x
+
 }
 
 
@@ -91,8 +91,13 @@ public fun register_proposal(self: &mut Dashboard, proposal_id: ID) {
 
 
 
-
-
+#[test_only]
+public fun issue_admine_cap(ctx: &mut TxContext){
+    transfer::transfer(
+        AdminCap{id: object::new(ctx)}, 
+    ctx.sender()
+    );
+}
 
 
 
