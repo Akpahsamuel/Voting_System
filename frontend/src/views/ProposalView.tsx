@@ -1,4 +1,4 @@
-
+import { useNetworkVariable } from "../config/networkConfig";
 
 const PROPOSAL_COUNT = 7;
 
@@ -12,6 +12,9 @@ const ProposalItem = () => {
 }
 
 const ProposalView = () => {
+  const dashboardId = useNetworkVariable("dashboardId");
+
+  console.log(dashboardId);
 
   return (
     <>

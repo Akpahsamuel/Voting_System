@@ -1,0 +1,12 @@
+
+export const TESTNET_PACKAGE_ID = "0x514d5d6d03c07b770744d7a708927da6b3f69a99c3eb5ba2d69b43aa7b9d84d2";
+export const DEVNET_PACKAGE_ID = "0x123";
+export const MAINNET_PACKAGE_ID = "0x234";
+
+export const TESTNET_ADMIN_CAP = "0x9c0641cba832e97c814e6cb955bc7f8152215394ea9b2f849d32233c04a92e5b";
+export const DEVNET_ADMIN_CAP = "0x123";
+export const MAINNET_ADMIN_CAP = "0x234";
+
+export const TESTNET_DASHBOARD_ID = "0xcae647d8bc3720024ae69aa3e2e7e7641e7c4afa8572430fb192c14f8911c6cb";
+export const DEVNET_DASHBOARD_ID = "0x123";
+export const MAINNET_DASHBOARD_ID= "0x234";
