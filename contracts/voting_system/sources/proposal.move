@@ -1,25 +1,9 @@
+module voting_system::proposal{
 
 
-module voting_system::proposal {
+use std::string::String;
+use voting_system::dashboard::AdminCap;
 
- use std::string::String;
- use voting_system::dashboard::AdminCap;
-
-
-
-/// A structure representing a proposal in the voting system.
-/// 
-/// # Fields
-/// * `id`: Unique identifier for the proposal
-/// * `title`: The title of the proposal
-/// * `description`: Detailed description of what the proposal entails
-/// * `voted_yes_count`: Counter for the number of votes in favor of the proposal
-/// * `voted_no_count`: Counter for the number of votes against the proposal
-/// * `expiration`: Timestamp indicating when the voting period for this proposal ends
-/// * `creator`: Address of the account that created this proposal
-/// * `voter_registry`: Collection of addresses that have already voted on this proposal
-///
-/// The proposal is stored on-chain with the `key` ability, making it accessible via object ID.
 public struct Proposal has key {
     id: UID,
     title: String,
@@ -29,33 +13,16 @@ public struct Proposal has key {
     expiration: u64,
     creator: address,
     voter_registry: vector<address>,
-
 }
 
-
-/// Creates and shares a new proposal in the voting system.
-/// 
-/// # Arguments
-/// 
-/// * `title` - The title of the proposal
-/// * `description` - Detailed description of what the proposal is about
-/// * `expiration` - Timestamp (in epochs) when the proposal expires and voting ends
-/// * `ctx` - Transaction context containing sender information and object creation capability
-/// 
-/// # Effects
-/// 
-/// * Creates a new `Proposal` object with initial vote counts set to 0
-/// * Records the creator's address from the transaction context
-/// * Initializes an empty voter registry to track who has already voted
-/// * Shares the proposal object, making it accessible to all users in the network
 public fun create(
     _admin_cap: &AdminCap,
     title: String,
     description: String,
     expiration: u64,
-    ctx:&mut TxContext,
-){
-    let proposal = Proposal{
+    ctx: &mut TxContext
+): ID {
+    let proposal = Proposal {
         id: object::new(ctx),
         title,
         description,
@@ -63,70 +30,42 @@ public fun create(
         voted_no_count: 0,
         expiration,
         creator: ctx.sender(),
-        voter_registry: vector[]
+        voter_registry: vector[],
     };
-    transfer::share_object(proposal)
+
+    let id = proposal.id.to_inner();
+    transfer::share_object(proposal);
+
+    id
+}
+
+public fun title(self: &Proposal): String {
+    self.title
+}
+
+public fun description(self: &Proposal): String {
+    self.description
+}
+
+public fun voted_yes_count(self: &Proposal): u64 {
+    self.voted_yes_count
+}
+
+public fun voted_no_count(self: &Proposal): u64 {
+    self.voted_no_count
+}
+
+public fun expiration(self: &Proposal): u64 {
+    self.expiration
+}
+
+public fun creator(self: &Proposal): address {
+    self.creator
+}
+
+public fun voter_registry(self: &Proposal): vector<address> {
+    self.voter_registry
 }
 
 
- public fun title(self: &Proposal): String {
-     self.title
- }
- 
- public fun description(self: &Proposal): String {
-     self.description
- }
- 
- public fun voted_yes_count(self: &Proposal): u64 {
-     self.voted_yes_count
- }
- 
- public fun voted_no_count(self: &Proposal): u64 {
-     self.voted_no_count
- }
- 
- public fun expiration(self: &Proposal): u64 {
-     self.expiration
- }
- 
- public fun creator(self: &Proposal): address {
-     self.creator
- }
- 
- public fun voter_registry(self: &Proposal): vector<address> {
-     self.voter_registry
- }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
