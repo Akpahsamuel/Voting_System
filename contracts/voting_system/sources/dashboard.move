@@ -38,7 +38,7 @@ public fun new(otw: DASHBOARD, ctx: &mut TxContext) {
     transfer::share_object(dashboard);
 }
 
-public fun register_proposal(self: &mut Dashboard, proposal_id: ID) {
+public fun register_proposal(self: &mut Dashboard, _admin_cap: &AdminCap, proposal_id: ID) {
     assert!(!self.proposals_ids.contains(&proposal_id), EDuplicateProposal);
     self.proposals_ids.push_back(proposal_id);
 }

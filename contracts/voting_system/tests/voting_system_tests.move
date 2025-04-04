@@ -78,7 +78,7 @@ fun test_register_proposal_as_admin() {
         let admin_cap = scenario.take_from_sender<AdminCap>();
         let proposal_id = new_proposal(&admin_cap, scenario.ctx());
 
-        dashboard.register_proposal(proposal_id);
+        dashboard.register_proposal(&admin_cap, proposal_id);
         let proposals_ids = dashboard.proposals_ids();
         let proposal_exists = proposals_ids.contains(&proposal_id);
 

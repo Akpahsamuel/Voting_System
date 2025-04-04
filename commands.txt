@@ -34,3 +34,65 @@ sui client ptb \
   --assign coin \
   --transfer-objects "[coin]" @0xf8be2230b4b600f144a975715f449f83c8f82f2c708c65b2b949785b316ac00f
   --gas-budget 100000000
+
+
+
+
+
+  
+sui client ptb \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::proposal::create \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d \
+   '"Proposal 1"' '"Proposal description 1"' 1740309061 \
+   --assign proposal_id \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::dashboard::register_proposal \
+   @0x8657b87ade121e6acfc20d7703fbd1cb14fdbebb5924b253f74d2e9c5ebb9c1d \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d proposal_id \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::proposal::create \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d \
+   '"Proposal 2"' '"Proposal description 2"' 1740309061 \
+   --assign proposal_id \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::dashboard::register_proposal \
+   @0x8657b87ade121e6acfc20d7703fbd1cb14fdbebb5924b253f74d2e9c5ebb9c1d \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d proposal_id \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::proposal::create \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d \
+   '"Proposal 3"' '"Proposal description 3"' 1740309061 \
+   --assign proposal_id \
+   --move-call 0x1684fa37ab9c133e092d94092770458129cb32547b5c72ba141b96e539a769a1::dashboard::register_proposal \
+   @0x8657b87ade121e6acfc20d7703fbd1cb14fdbebb5924b253f74d2e9c5ebb9c1d \
+   @0xff6f800322e409b4d11d66b10070acaf5e536f7e0bf403b10a35acd50a25299d proposal_id 
+ 
+
+ 
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+   sui client ptb \
+   --move-call 0x104833ff4bf6a60d97171d8b0cd6bd0f2d6194a48b8500924504b5522b955f5a::proposal::create \
+   @0x48d78ad16b17033bd124e539d77eff94a419f3b3ce7f07689a6e6addf2efd0ca \
+   '"Proposal 2"' '"Proposal description 2"' 1740309061 \
+   --assign proposal_id \
+   --move-call 0x104833ff4bf6a60d97171d8b0cd6bd0f2d6194a48b8500924504b5522b955f5a::dashboard::register_proposal \
+   @0xddd3c9c1e6fbc14cd57df59d285085a52dfa88cb5634af7675f2a3198dc04860 proposal_id \
+   --move-call 0x104833ff4bf6a60d97171d8b0cd6bd0f2d6194a48b8500924504b5522b955f5a::proposal::create \
+   @0x48d78ad16b17033bd124e539d77eff94a419f3b3ce7f07689a6e6addf2efd0ca \
+   '"Proposal 3"' '"Proposal description 3"' 1740309061 \
+   --assign proposal_id \
+   --move-call 0x104833ff4bf6a60d97171d8b0cd6bd0f2d6194a48b8500924504b5522b955f5a::dashboard::register_proposal \
+   @0xddd3c9c1e6fbc14cd57df59d285085a52dfa88cb5634af7675f2a3198dc04860 proposal_id
