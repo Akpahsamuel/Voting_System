@@ -42,6 +42,9 @@ export const ProposalItem: FC<ProposalItemsProps> = ({id}) => {
             {proposal.votedNoCount}
           </div>
         </div>
+        <div>
+          <EcText text={formatUnixTime(proposal.expiration)}/>
+        </div>
       </div>
     </div>
   )
@@ -59,3 +62,14 @@ function parseProposal(data: SuiObjectData): Proposal | null {
     expiration: Number(expiration)
   };
  }
+
+function formatUnixTime(timestampSec: number) {
+  return new Date(timestampSec * 1000).toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
