@@ -2,6 +2,7 @@ module voting_system::proposal;
 
 use std::string::String;
 use sui::table::{Self, Table};
+use sui::url::{Url, new_unsafe_from_bytes};
 use voting_system::dashboard::AdminCap;
 
 const EDuplicateVote: u64 = 0;
@@ -17,9 +18,17 @@ public struct Proposal has key {
     voters: Table<address, bool>,
 }
 
+public struct VoteProofNFT has key {
+    id: UID,
+    proposal_id: ID,
+    name: String,
+    description: String,
+    url: Url,
+}
+
 // === Public Functions ===
 
-public fun vote(self: &mut Proposal, vote_yes: bool, ctx: &TxContext) {
+public fun vote(self: &mut Proposal, vote_yes: bool, ctx: &mut TxContext) {
     assert!(!self.voters.contains(ctx.sender()), EDuplicateVote);
 
     if (vote_yes) {
@@ -29,9 +38,14 @@ public fun vote(self: &mut Proposal, vote_yes: bool, ctx: &TxContext) {
     };
 
     self.voters.add(ctx.sender(), vote_yes);
+    issue_vote_proof(self, vote_yes, ctx);
 }
 
 // === View Functions ===
+
+public fun vote_proof_url(self: &VoteProofNFT): Url {
+    self.url
+}
 
 public fun title(self: &Proposal): String {
     self.title
@@ -85,4 +99,28 @@ public fun create(
     transfer::share_object(proposal);
 
     id
+}
+
+fun issue_vote_proof(proposal: &Proposal, vote_yes: bool, ctx: &mut TxContext) {
+    let mut name = b"NFT ".to_string();
+    name.append(proposal.title);
+
+    let mut description = b"Proof of votting on ".to_string();
+    let proposal_address = object::id_address(proposal).to_string();
+    description.append(proposal_address);
+
+    let vote_yes_image = new_unsafe_from_bytes(b"https://thrangra.sirv.com/vote_yes_nft.jpg");
+    let vote_no_image = new_unsafe_from_bytes(b"https://thrangra.sirv.com/vote_no_nft.jpg");
+
+    let url = if (vote_yes) { vote_yes_image } else { vote_no_image };
+
+    let proof = VoteProofNFT {
+        id: object::new(ctx),
+        proposal_id: proposal.id.to_inner(),
+        name,
+        description,
+        url
+    };
+
+    transfer::transfer(proof, ctx.sender());
 }

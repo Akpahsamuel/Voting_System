@@ -27,7 +27,7 @@ fun init(otw: DASHBOARD, ctx: &mut TxContext) {
     );
 }
 
-public fun new(otw: DASHBOARD, ctx: &mut TxContext) {
+public  fun new(otw: DASHBOARD, ctx: &mut TxContext) {
     assert!(types::is_one_time_witness(&otw), EInvalidOtw);
 
     let dashboard = Dashboard {
@@ -38,7 +38,7 @@ public fun new(otw: DASHBOARD, ctx: &mut TxContext) {
     transfer::share_object(dashboard);
 }
 
-public fun register_proposal(self: &mut Dashboard, _admin_cap: &AdminCap, proposal_id: ID) {
+public entry fun register_proposal(self: &mut Dashboard, _admin_cap: &AdminCap, proposal_id: ID) {
     assert!(!self.proposals_ids.contains(&proposal_id), EDuplicateProposal);
     self.proposals_ids.push_back(proposal_id);
 }

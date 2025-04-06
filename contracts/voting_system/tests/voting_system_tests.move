@@ -3,10 +3,11 @@
 module voting_system::voting_system_tests;
 
 use sui::test_scenario;
-use voting_system::proposal::{Self, Proposal};
+use voting_system::proposal::{Self, Proposal, VoteProofNFT};
 use voting_system::dashboard::{Self, AdminCap, Dashboard};
 
 const EWrongVoteCount: u64 = 0;
+const EWrongNftUrl: u64 = 1;
 
 #[test]
 fun test_create_proposal_with_admin_cap(){
@@ -175,6 +176,40 @@ fun test_duplicate_voting() {
         proposal.vote(true, scenario.ctx());
 
         test_scenario::return_shared(proposal);
+    };
+
+    scenario.end();
+}
+
+#[test]
+fun test_issue_vote_proof() {
+    let bob = @0xB0B;
+    let admin = @0xA01;
+
+    let mut scenario = test_scenario::begin(admin);
+    {
+        dashboard::issue_admin_cap(scenario.ctx());
+    };
+
+    scenario.next_tx(admin);
+    {
+        let admin_cap = scenario.take_from_sender<AdminCap>();
+        new_proposal(&admin_cap, scenario.ctx());
+        test_scenario::return_to_sender(&scenario, admin_cap);
+    };
+
+    scenario.next_tx(bob);
+    {
+        let mut proposal = scenario.take_shared<Proposal>();
+        proposal.vote(true, scenario.ctx());
+        test_scenario::return_shared(proposal);
+    };
+
+    scenario.next_tx(bob);
+    {
+        let vote_proof = scenario.take_from_sender<VoteProofNFT>();
+        assert!(vote_proof.vote_proof_url().inner_url() == b"https://thrangra.sirv.com/vote_yes_nft.jpg".to_ascii_string(), EWrongNftUrl);
+        scenario.return_to_sender(vote_proof);
     };
 
     scenario.end();
