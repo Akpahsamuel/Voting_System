@@ -2,17 +2,19 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { FC, useState } from "react";
 import { EcText } from "../Shared";
 import { SuiObjectData } from "@mysten/sui/client";
-import { Proposal } from "../../types";
+import { Proposal, VoteNft } from "../../types";
 import { VoteModal } from "./VoteModal";
 
 
 interface ProposalItemsProps {
   id: string;
+  voteNft: VoteNft | undefined;
+  onVoteTxSuccess: () => void;
 };
 
-export const ProposalItem: FC<ProposalItemsProps> = ({id}) => {
+export const ProposalItem: FC<ProposalItemsProps> = ({id, voteNft, onVoteTxSuccess}) => {
   const [isModelOpen, setIsModelOpen] = useState(false);
-  const { data: dataResponse, error, isPending} = useSuiClientQuery(
+  const { data: dataResponse, refetch: refetchProposal, error, isPending} = useSuiClientQuery(
     "getObject", {
       id,
       options: {
@@ -40,9 +42,12 @@ export const ProposalItem: FC<ProposalItemsProps> = ({id}) => {
         className={`${isExpired ? "cursor-not-allowed border-gray-600" : "hover:border-blue-500"}
           p-4 border rounded-lg shadow-sm bg-white dark:bg-gray-800  transition-colors cursor-pointer`}
       >
-        <p
-          className={`${isExpired ? "text-gray-600" : "text-gray-300"} text-xl font-semibold mb-2`}>{proposal.title}
-        </p>
+        <div className="flex justify-between">
+          <p
+            className={`${isExpired ? "text-gray-600" : "text-gray-300"} text-xl font-semibold mb-2`}>{proposal.title}
+          </p>
+          { !!voteNft && <img className="w-8 h-8 rounded-full" src={voteNft?.url} />}
+        </div>
         <p
           className={`${isExpired ? "text-gray-600" : "text-gray-300"} `}>{proposal.description}
         </p>
@@ -64,9 +69,15 @@ export const ProposalItem: FC<ProposalItemsProps> = ({id}) => {
       </div>
       <VoteModal
         proposal={proposal}
+        hasVoted={!!voteNft}
         isOpen={isModelOpen}
         onClose={() => setIsModelOpen(false)}
-        onVote={(votedYes: boolean) => console.log(votedYes)}
+        onVote={(votedYes: boolean) => {
+          console.log(votedYes);
+          refetchProposal();
+          onVoteTxSuccess();
+          setIsModelOpen(false);
+        }}
       />
     </>
   )
@@ -85,17 +96,17 @@ function parseProposal(data: SuiObjectData): Proposal | null {
   };
  }
 
-function isUnixTimeExpired(unixTimeSec: number) {
-  return new Date(unixTimeSec * 1000) < new Date();
+function isUnixTimeExpired(unixTimeMs: number) {
+  return new Date(unixTimeMs) < new Date();
 }
 
-function formatUnixTime(timestampSec: number) {
+function formatUnixTime(timestampMs: number) {
 
-  if (isUnixTimeExpired(timestampSec)) {
+  if (isUnixTimeExpired(timestampMs)) {
     return "Expired";
   }
 
-  return new Date(timestampSec * 1000).toLocaleString("en-US", {
+  return new Date(timestampMs).toLocaleString("en-US", {
     month: "short",
     day: "2-digit",
     year: "numeric",

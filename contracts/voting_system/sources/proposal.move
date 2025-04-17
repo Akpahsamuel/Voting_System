@@ -3,9 +3,18 @@ module voting_system::proposal;
 use std::string::String;
 use sui::table::{Self, Table};
 use sui::url::{Url, new_unsafe_from_bytes};
+use sui::clock::{Clock};
+use sui::event;
 use voting_system::dashboard::AdminCap;
 
 const EDuplicateVote: u64 = 0;
+const EProposalDelisted: u64 = 1;
+const EProposalExpired: u64 = 2;
+
+public enum ProposalStatus has store, drop {
+    Active,
+    Delisted,
+}
 
 public struct Proposal has key {
     id: UID,
@@ -15,6 +24,7 @@ public struct Proposal has key {
     voted_no_count: u64,
     expiration: u64,
     creator: address,
+    status: ProposalStatus,
     voters: Table<address, bool>,
 }
 
@@ -26,9 +36,17 @@ public struct VoteProofNFT has key {
     url: Url,
 }
 
+public struct VoteRegistered has copy, drop {
+    proposal_id: ID,
+    voter: address,
+    vote_yes: bool,
+}
+
 // === Public Functions ===
 
-public fun vote(self: &mut Proposal, vote_yes: bool, ctx: &mut TxContext) {
+public fun vote(self: &mut Proposal, vote_yes: bool, clock: &Clock, ctx: &mut TxContext) {
+    assert!(self.expiration > clock.timestamp_ms(), EProposalExpired);
+    assert!(self.is_active(), EProposalDelisted);
     assert!(!self.voters.contains(ctx.sender()), EDuplicateVote);
 
     if (vote_yes) {
@@ -39,12 +57,31 @@ public fun vote(self: &mut Proposal, vote_yes: bool, ctx: &mut TxContext) {
 
     self.voters.add(ctx.sender(), vote_yes);
     issue_vote_proof(self, vote_yes, ctx);
+
+    event::emit(VoteRegistered {
+        proposal_id: self.id.to_inner(),
+        voter: ctx.sender(),
+        vote_yes
+    });
 }
 
 // === View Functions ===
 
 public fun vote_proof_url(self: &VoteProofNFT): Url {
     self.url
+}
+
+public fun is_active(self: &Proposal): bool {
+    let status = self.status();
+
+    match (status) {
+        ProposalStatus::Active => true,
+        _ => false,
+    }
+}
+
+public fun status(self: &Proposal): &ProposalStatus {
+    &self.status
 }
 
 public fun title(self: &Proposal): String {
@@ -92,6 +129,7 @@ public fun create(
         voted_no_count: 0,
         expiration,
         creator: ctx.sender(),
+        status: ProposalStatus::Active,
         voters: table::new(ctx),
     };
 
@@ -99,6 +137,39 @@ public fun create(
     transfer::share_object(proposal);
 
     id
+}
+
+public fun remove(self: Proposal, _admin_cap: &AdminCap) {
+    let Proposal {
+        id,
+        title: _,
+        description: _,
+        voted_yes_count: _,
+        voted_no_count: _,
+        expiration: _,
+        status: _,
+        voters,
+        creator: _,
+    } = self;
+
+    table::drop(voters);
+    object::delete(id)
+}
+
+public fun set_active_status(self: &mut Proposal, admin_cap: &AdminCap) {
+    self.change_status(admin_cap,  ProposalStatus::Active);
+}
+
+public fun set_delisted_status(self: &mut Proposal, admin_cap: &AdminCap) {
+    self.change_status(admin_cap,  ProposalStatus::Delisted);
+}
+
+fun change_status(
+    self: &mut Proposal,
+    _admin_cap: &AdminCap,
+    status: ProposalStatus
+) {
+    self.status = status;
 }
 
 fun issue_vote_proof(proposal: &Proposal, vote_yes: bool, ctx: &mut TxContext) {
