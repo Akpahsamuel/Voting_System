@@ -15,7 +15,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <SuiClientProvider defaultNetwork="testnet" networks={networkConfig}>
+        <SuiClientProvider defaultNetwork={getNetwork()} networks={networkConfig}>
           <WalletProvider autoConnect>
             <NavigationProvider>
               <App />
@@ -26,3 +26,16 @@ createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </StrictMode>,
 )
+
+function getNetwork() {
+  const networks = ["mainnet", "devnet", "testnet"];
+  const network = import.meta.env.VITE_NETWORK;
+
+  console.log("Selecting: " + network);
+
+  if (!networks.includes(network)) {
+    return "testnet";
+  }
+
+  return network;
+}
