@@ -62,6 +62,21 @@ export const VoteModal: FC<VoteModalProps> = ({
           }
         });
 
+        const eventResult = await suiClient.queryEvents({
+          query: { Transaction: digest }
+        });
+
+        if (eventResult.data.length > 0) {
+          const firstEvent = eventResult.data[0].parsedJson as {proposal_id?: string, voter?: string, vote_yes?: boolean };
+          const id = firstEvent.proposal_id || "No event found for give criteria";
+          const voter = firstEvent.voter || "No event found for give criteria";
+          const voteYes = firstEvent.vote_yes || "No event found for give criteria";
+          console.log("Event Captured!");
+          console.log(id, voter, voteYes);
+        } else {
+          console.log("No events found!");
+        }
+
         reset();
         dismissToast("Tx Succesful!");
         onVote(voteYes);
