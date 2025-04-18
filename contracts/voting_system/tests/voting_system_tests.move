@@ -1,6 +1,6 @@
 
 #[test_only]
-module voting_system::voting_system_tests;
+module voting_system::voting_system_tests{
 
 use sui::test_scenario;
 use sui::clock;
@@ -236,7 +236,7 @@ fun test_issue_vote_proof() {
     scenario.next_tx(bob);
     {
         let vote_proof = scenario.take_from_sender<VoteProofNFT>();
-        assert!(vote_proof.vote_proof_url().inner_url() == b"https://thrangra.sirv.com/vote_yes_nft.jpg".to_ascii_string(), EWrongNftUrl);
+        assert!(vote_proof.vote_proof_url().inner_url() == b"https://lionprado.sirv.com/vote_yes_nft.png".to_ascii_string(), EWrongNftUrl);
         scenario.return_to_sender(vote_proof);
     };
 
@@ -332,5 +332,5 @@ fun test_voting_expiration() {
 
 
 
-
+}
 
