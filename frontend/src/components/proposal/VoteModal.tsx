@@ -1,9 +1,10 @@
-import { FC, useRef } from "react";
+import { FC, useRef, useState } from "react";
 import { Proposal } from "../../types";
 import { ConnectButton, useCurrentWallet, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { Transaction } from "@mysten/sui/transactions";
 import { toast } from "react-toastify";
+import { getTransactionUrl, openInExplorer } from "../../utils/explorerUtils";
 
 interface VoteModalProps {
   proposal: Proposal;
@@ -25,6 +26,7 @@ export const VoteModal: FC<VoteModalProps> = ({
   const { mutate: signAndExecute, isPending, isSuccess, reset } = useSignAndExecuteTransaction();
   const packageId = useNetworkVariable("packageId");
   const toastId = useRef<number | string>();
+  const [latestTxDigest, setLatestTxDigest] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -49,12 +51,15 @@ export const VoteModal: FC<VoteModalProps> = ({
 
     showToast("Processing Transaction");
     signAndExecute({
-      transaction: tx
+      transaction: tx.serialize()
     }, {
       onError: () => {
         dismissToast("Tx Failed!");
       },
       onSuccess: async ({ digest }) => {
+        // Store the transaction digest for viewing on SuiScan
+        setLatestTxDigest(digest);
+        
         await suiClient.waitForTransaction({
           digest,
           options: {
@@ -78,7 +83,7 @@ export const VoteModal: FC<VoteModalProps> = ({
         }
 
         reset();
-        dismissToast("Tx Succesful!");
+        dismissToast("Tx Successful!");
         onVote(voteYes);
       }
     });
@@ -108,6 +113,21 @@ export const VoteModal: FC<VoteModalProps> = ({
             <span>👍Yes votes: {proposal.votedYesCount}</span>
             <span>👎No votes: {proposal.votedNoCount}</span>
           </div>
+          
+          {latestTxDigest && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md mb-2">
+              <p className="text-sm text-blue-800 dark:text-blue-300 mb-1">
+                Your vote has been submitted to the blockchain!
+              </p>
+              <button
+                onClick={() => openInExplorer(getTransactionUrl(latestTxDigest))}
+                className="text-xs text-white hover:underline bg-blue-500 dark:bg-blue-600 px-2 py-1 rounded"
+              >
+                View Transaction on Scan
+              </button>
+            </div>
+          )}
+          
           <div className="flex justify-between gap-4">
             {connectionStatus === "connected" ?
               <>

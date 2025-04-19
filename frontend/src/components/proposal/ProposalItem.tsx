@@ -4,7 +4,7 @@ import { EcText } from "../Shared";
 import { SuiObjectData } from "@mysten/sui/client";
 import { Proposal, VoteNft } from "../../types";
 import { VoteModal } from "./VoteModal";
-
+import { getObjectUrl, openInExplorer } from "../../utils/explorerUtils";
 
 interface ProposalItemsProps {
   id: string;
@@ -64,10 +64,19 @@ export const ProposalItem: FC<ProposalItemsProps> = ({id, voteNft, onVoteTxSucce
               {proposal.votedNoCount}
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             <p className={`${isExpired ? "text-gray-600" : "text-gray-400"} text-sm`}>
               { isDelisted ? "Delisted" : formatUnixTime(expiration)}
             </p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent modal from opening
+                openInExplorer(getObjectUrl(id));
+              }}
+              className="text-xs text-white hover:underline bg-blue-500 dark:bg-blue-600 px-2 py-1 rounded"
+            >
+              View on Scan
+            </button>
           </div>
         </div>
       </div>

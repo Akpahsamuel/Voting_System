@@ -3,6 +3,8 @@ import { useTheme } from "./providers/theme/ThemeContext";
 import ProposalView from "./views/ProposalView";
 import Navbar from "./components/Navbar";
 import WalletView from "./views/WalletView";
+import AdminDashboard from "./views/AdminDashboard";
+import StatisticsView from "./views/StatisticsView";
 import { useNavigation } from "./providers/navigation/NavigationContext";
 
 const Pages = () => {
@@ -13,6 +15,10 @@ const Pages = () => {
       return <ProposalView />
     case "/wallet":
       return <WalletView />
+    case "/admin":
+      return <AdminDashboard />
+    case "/statistics":
+      return <StatisticsView />
     default:
       return <div className="text-center">Page not found!</div>
   }
