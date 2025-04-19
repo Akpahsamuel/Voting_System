@@ -4,10 +4,13 @@ import { PaginatedObjectsResponse, SuiObjectData } from "@mysten/sui/client";
 import { ProposalItem } from "../components/proposal/ProposalItem";
 import { useVoteNfts } from "../hooks/useVoteNfts";
 import { VoteNft } from "../types";
+import UserStatistics from "../components/user/UserStatistics";
+import { useState } from "react";
 
 const ProposalView = () => {
   const dashboardId = useNetworkVariable("dashboardId");
   const { data: voteNftsRes, refetch: refetchNfts} = useVoteNfts();
+  const [showStats, setShowStats] = useState(true);
 
   const { data: dataResponse, isPending, error} = useSuiClientQuery(
     "getObject", {
@@ -23,12 +26,29 @@ const ProposalView = () => {
   if (!dataResponse.data) return <div className="text-center text-red-500">Not Found...</div>;
 
   const voteNfts = extractVoteNfts(voteNftsRes);
+  const proposalIds = getDashboardFields(dataResponse.data)?.proposals_ids || [];
 
   return (
     <>
-      <h1 className="text-4xl font-bold mb-8">New Proposals</h1>
+      <div className="mb-8 relative">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-4xl font-bold">Voting Platform</h1>
+          <button 
+            onClick={() => setShowStats(!showStats)}
+            className="text-blue-500 hover:underline text-sm"
+          >
+            {showStats ? 'Hide Statistics' : 'Show Statistics'}
+          </button>
+        </div>
+        
+        {showStats && (
+          <UserStatistics proposalIds={proposalIds} userVoteNfts={voteNfts} />
+        )}
+      </div>
+      
+      <h2 className="text-2xl font-semibold mb-6">Available Proposals</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {getDashboardFields(dataResponse.data)?.proposals_ids.map(id =>
+        {proposalIds.map(id =>
           <ProposalItem
             key={id}
             id={id}
