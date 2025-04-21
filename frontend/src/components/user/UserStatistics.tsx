@@ -146,12 +146,12 @@ const UserStatistics: React.FC<UserStatisticsProps> = ({ proposalIds, userVoteNf
         label: 'Vote Distribution',
         data: [totalVotesYes, totalVotesNo],
         backgroundColor: [
-          'rgba(34, 197, 94, 0.7)',  // Green for Yes
-          'rgba(239, 68, 68, 0.7)',  // Red for No
+          'rgba(74, 222, 128, 0.7)',  // Green for Yes
+          'rgba(248, 113, 113, 0.7)',  // Red for No
         ],
         borderColor: [
-          'rgba(34, 197, 94, 1)', 
-          'rgba(239, 68, 68, 1)',
+          'rgba(74, 222, 128, 1)', 
+          'rgba(248, 113, 113, 1)',
         ],
         borderWidth: 1,
       },
@@ -169,15 +169,15 @@ const UserStatistics: React.FC<UserStatisticsProps> = ({ proposalIds, userVoteNf
       {
         label: 'Yes Votes',
         data: topProposalsByVotes.map(p => p.votedYesCount),
-        backgroundColor: 'rgba(34, 197, 94, 0.7)',
-        borderColor: 'rgba(34, 197, 94, 1)',
+        backgroundColor: 'rgba(74, 222, 128, 0.7)',
+        borderColor: 'rgba(74, 222, 128, 1)',
         borderWidth: 1,
       },
       {
         label: 'No Votes',
         data: topProposalsByVotes.map(p => p.votedNoCount),
-        backgroundColor: 'rgba(239, 68, 68, 0.7)',
-        borderColor: 'rgba(239, 68, 68, 1)',
+        backgroundColor: 'rgba(248, 113, 113, 0.7)',
+        borderColor: 'rgba(248, 113, 113, 1)',
         borderWidth: 1,
       },
     ],
@@ -195,12 +195,12 @@ const UserStatistics: React.FC<UserStatisticsProps> = ({ proposalIds, userVoteNf
   const userStatus = getUserStatus();
   const userStatusColor = () => {
     switch (userStatus) {
-      case 'Not Connected': return 'text-gray-500';
-      case 'Not Voted': return 'text-orange-500';
-      case 'Casual Voter': return 'text-blue-500';
-      case 'Active Voter': return 'text-green-500';
-      case 'Power Voter': return 'text-purple-500';
-      default: return 'text-gray-500';
+      case 'Not Connected': return 'text-gray-400';
+      case 'Not Voted': return 'text-orange-400';
+      case 'Casual Voter': return 'text-blue-400';
+      case 'Active Voter': return 'text-green-400';
+      case 'Power Voter': return 'text-purple-400';
+      default: return 'text-gray-400';
     }
   };
   
@@ -220,406 +220,239 @@ const UserStatistics: React.FC<UserStatisticsProps> = ({ proposalIds, userVoteNf
       transition={{ duration: 0.5 }}
       className="w-full"
     >
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div>
-              <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <BarChart3Icon className="h-6 w-6 text-blue-500" />
-                Governance Dashboard
-              </CardTitle>
-              <CardDescription className="text-gray-500 dark:text-gray-400">
-                Your voting statistics and governance participation
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="mt-2 md:mt-0 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800">
-              {totalProposals} Total Proposals
-            </Badge>
+      <div className="pb-2">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+          <div>
+            <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+              <BarChart3Icon className="h-5 w-5 text-blue-400" />
+              Governance Dashboard
+            </h3>
+            <p className="text-white/70 text-sm">
+              Your voting statistics and governance participation
+            </p>
           </div>
-        </CardHeader>
+          <Badge className="mt-2 md:mt-0 bg-blue-900/50 text-blue-300 border-blue-700/50">
+            {totalProposals} Total Proposals
+          </Badge>
+        </div>
 
-        <Tabs defaultValue="overview" className="px-1">
-          <div className="px-5">
-            <TabsList className="w-full md:w-auto grid grid-cols-2 md:inline-flex h-auto p-1">
-              <TabsTrigger value="overview" className="py-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="py-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                Detailed Analytics
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="overview" className="mt-6 px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* User Stats Card */}
-              <Card className="lg:col-span-3 border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <UserIcon className="h-5 w-5 text-blue-500" />
-                    Your Participation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col space-y-6">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Proposals Voted</span>
-                        <TooltipProvider>
-                          <ReactTooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-sm font-medium text-blue-500 flex items-center">
-                                {userVotedCount} of {totalProposals}
-                                <InfoIcon className="h-3 w-3 ml-1" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">You've voted on {userParticipationRate.toFixed(1)}% of all proposals</p>
-                            </TooltipContent>
-                          </ReactTooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Progress value={userParticipationRate} className="h-2" />
-                    </div>
-                    
-                    <motion.div 
-                      whileHover={{ scale: 1.03 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                      className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 rounded-lg p-4 text-center"
-                    >
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Active Proposals</p>
-                      <p className="text-2xl font-bold text-blue-500">
-                        {activeAndNotExpired} <span className="text-sm font-normal">/ {totalProposals}</span>
-                      </p>
-                      <div className="mt-2 h-1 w-full bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-full" 
-                          style={{ width: `${(activeAndNotExpired/totalProposals) * 100}%` }}
-                        ></div>
-                      </div>
-                    </motion.div>
-                    
-                    <motion.div 
-                      whileHover={{ scale: 1.03 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                      className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 rounded-lg p-4 text-center"
-                    >
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Your Status</p>
-                      <p className={`text-2xl font-bold ${userStatusColor()}`}>
-                        {userStatus}
-                      </p>
-                      {userStatus !== 'Not Connected' && userStatus !== 'Not Voted' && (
-                        <p className="text-xs mt-1 text-gray-500">
-                          {userVotedCount} votes recorded
-                        </p>
-                      )}
-                    </motion.div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Vote Distribution Card */}
-              <Card className="lg:col-span-3 border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <PieChartIcon className="h-5 w-5 text-green-500" />
-                    Vote Distribution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-48 md:h-56 flex items-center justify-center">
-                    <Pie 
-                      data={voteDistributionData} 
-                      options={{ 
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            position: 'bottom',
-                            labels: {
-                              usePointStyle: true,
-                              boxWidth: 8
-                            }
-                          }
-                        }
-                      }} 
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="text-center bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                      <div className="flex items-center justify-center gap-1">
-                        <CheckCircleIcon className="h-4 w-4 text-green-500" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Yes Votes</p>
-                      </div>
-                      <p className="text-xl font-bold text-green-500">{totalVotesYes}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {totalVotes > 0 ? `${((totalVotesYes / totalVotes) * 100).toFixed(1)}%` : '0%'}
-                      </p>
-                    </div>
-                    <div className="text-center bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                      <div className="flex items-center justify-center gap-1">
-                        <XCircleIcon className="h-4 w-4 text-red-500" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">No Votes</p>
-                      </div>
-                      <p className="text-xl font-bold text-red-500">{totalVotesNo}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {totalVotes > 0 ? `${((totalVotesNo / totalVotes) * 100).toFixed(1)}%` : '0%'} 
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {/* Top Voted Proposals */}
-              <Card className="lg:col-span-6 border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUpIcon className="h-5 w-5 text-indigo-500" />
-                    Popular Proposals
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-60">
-                    <Bar 
-                      data={topProposalsData}
-                      options={{ 
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            position: 'bottom',
-                            labels: {
-                              usePointStyle: true,
-                              boxWidth: 8
-                            }
-                          },
-                          tooltip: {
-                            callbacks: {
-                              title: function(context) {
-                                const index = context[0].dataIndex;
-                                return topProposalsByVotes[index].title;
-                              }
-                            }
-                          }
-                        },
-                        scales: {
-                          y: {
-                            beginAtZero: true,
-                            grid: {
-                              color: 'rgba(200, 200, 200, 0.2)',
-                            }
-                          },
-                          x: {
-                            grid: {
-                              display: false
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <Separator className="my-6" />
-            
-            {/* Stats Cards Bottom Row */}
+        <Tabs defaultValue="overview" className="">
+          <TabsList className="bg-white/10 mb-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="analytics">Detailed Analytics</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <motion.div 
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                className="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Proposals</p>
-                  <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                    <ChevronUpIcon className="h-5 w-5 text-blue-500" />
-                  </div>
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                  <p className="text-xs text-white/70">Active Proposals</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{totalProposals}</p>
-                <div className="mt-2 h-1 w-full bg-blue-100 dark:bg-blue-900/30 rounded-full"></div>
-              </motion.div>
+                <p className="text-xl font-bold text-white mt-1">{activeAndNotExpired}</p>
+              </div>
               
-              <motion.div 
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                className="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Active Proposals</p>
-                  <div className="h-8 w-8 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
-                    <ChevronUpIcon className="h-5 w-5 text-green-500" />
-                  </div>
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                  <p className="text-xs text-white/70">Total Votes</p>
                 </div>
-                <p className="text-2xl font-bold text-green-500 mt-2">{activeProposals}</p>
-                <div className="mt-2 h-1 w-full bg-green-100 dark:bg-green-900/30 rounded-full"></div>
-              </motion.div>
+                <p className="text-xl font-bold text-white mt-1">{totalVotes}</p>
+              </div>
               
-              <motion.div 
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                className="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Votes</p>
-                  <div className="h-8 w-8 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
-                    <ChevronUpIcon className="h-5 w-5 text-purple-500" />
-                  </div>
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                  <p className="text-xs text-white/70">Yes Votes</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-2">{totalVotes}</p>
-                <div className="mt-2 h-1 w-full bg-purple-100 dark:bg-purple-900/30 rounded-full"></div>
-              </motion.div>
+                <p className="text-xl font-bold text-white mt-1">{totalVotesYes}</p>
+              </div>
               
-              <motion.div 
-                whileHover={{ y: -5 }}
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                className="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Avg. Votes/Proposal</p>
-                  <div className="h-8 w-8 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
-                    <ChevronUpIcon className="h-5 w-5 text-indigo-500" />
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg border border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                  <p className="text-xs text-white/70">No Votes</p>
+                </div>
+                <p className="text-xl font-bold text-white mt-1">{totalVotesNo}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {account ? (
+                <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+                  <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                    <UserIcon className="h-4 w-4 text-blue-400" />
+                    Your Participation
+                  </h4>
+                  
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/70 text-sm">Votes Cast</span>
+                    <span className="text-blue-400 font-medium">{userVotedCount} / {totalProposals}</span>
+                  </div>
+                  
+                  <Progress value={userParticipationRate} className="h-1.5 mb-4" />
+                  
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-sm text-white/70">Status</span>
+                      <p className={`font-medium ${userStatusColor()}`}>{userStatus}</p>
+                    </div>
+                    
+                    <Badge variant="outline" className="bg-white/10 border-white/10">
+                      {userParticipationRate.toFixed(0)}% Participation
+                    </Badge>
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-indigo-500 mt-2">
-                  {totalVotes > 0 && totalProposals > 0 ? ((totalVotes / totalProposals).toFixed(1)) : '0'}
-                </p>
-                <div className="mt-2 h-1 w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-full"></div>
-              </motion.div>
+              ) : (
+                <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10 flex flex-col items-center justify-center text-center">
+                  <UserIcon className="h-8 w-8 text-blue-400 mb-2" />
+                  <h4 className="text-white font-medium mb-1">Connect Your Wallet</h4>
+                  <p className="text-white/70 text-sm mb-4">Connect your wallet to see your voting statistics</p>
+                </div>
+              )}
+              
+              <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+                <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4 text-blue-400" />
+                  Vote Distribution
+                </h4>
+                
+                <div className="h-[180px] flex items-center justify-center">
+                  <Pie 
+                    data={voteDistributionData} 
+                    options={{ 
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'right',
+                          labels: {
+                            color: 'white',
+                            font: {
+                              size: 12
+                            }
+                          }
+                        }
+                      }
+                    }} 
+                  />
+                </div>
+              </div>
             </div>
           </TabsContent>
           
-          <TabsContent value="analytics" className="mt-6 px-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <Card className="border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">Proposal Status Distribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Active</span>
-                        <span className="text-sm font-medium text-green-500">{activeProposals} of {totalProposals}</span>
-                      </div>
-                      <Progress value={(activeProposals/totalProposals) * 100} className="h-2 bg-gray-200" indicatorClassName="bg-green-500" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Expired</span>
-                        <span className="text-sm font-medium text-orange-500">{expiredProposals} of {totalProposals}</span>
-                      </div>
-                      <Progress value={(expiredProposals/totalProposals) * 100} className="h-2 bg-gray-200" indicatorClassName="bg-orange-500" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Active & Not Expired</span>
-                        <span className="text-sm font-medium text-blue-500">{activeAndNotExpired} of {totalProposals}</span>
-                      </div>
-                      <Progress value={(activeAndNotExpired/totalProposals) * 100} className="h-2 bg-gray-200" indicatorClassName="bg-blue-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="analytics">
+            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10 mb-6">
+              <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                <TrendingUpIcon className="h-4 w-4 text-blue-400" />
+                Most Active Proposals
+              </h4>
               
-              <Card className="border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">Your Voting Metrics</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Participation Rate</p>
-                      <p className="text-2xl font-bold text-blue-500">{userParticipationRate.toFixed(1)}%</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Remaining to Vote</p>
-                      <p className="text-2xl font-bold text-indigo-500">{totalProposals - userVotedCount}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Voting Impact Factor</p>
-                    <div className="flex items-end gap-2">
-                      <p className="text-2xl font-bold text-blue-500">
-                        {userVotedCount > 0 ? ((userVotedCount / totalVotes) * 100).toFixed(2) : '0'}%
-                      </p>
-                      <p className="text-xs text-gray-500 mb-1">of total community votes</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="h-[220px]">
+                <Bar 
+                  data={topProposalsData} 
+                  options={{ 
+                    maintainAspectRatio: false,
+                    scales: {
+                      y: {
+                        stacked: false,
+                        ticks: {
+                          color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                          color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                      },
+                      x: {
+                        stacked: false,
+                        ticks: {
+                          color: 'rgba(255, 255, 255, 0.7)'
+                        },
+                        grid: {
+                          display: false
+                        }
+                      }
+                    },
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                        labels: {
+                          color: 'white',
+                          font: {
+                            size: 12
+                          }
+                        }
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
             
-            <Card className="border shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Popular Proposals Detail</CardTitle>
-                <CardDescription>Top 3 proposals by vote participation</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {topProposalsByVotes.map((proposal, index) => (
-                    <div key={proposal.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{proposal.title}</p>
-                          <div className="flex items-center mt-1">
-                            <Badge variant={proposal.status === 'Active' ? "success" : "secondary"} className="text-xs">
-                              {proposal.status}
-                            </Badge>
-                            <span className="text-xs text-gray-500 ml-2">
-                              {new Date(proposal.expiration).toLocaleDateString()}
-                            </span>
-                          </div>
+            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+              <h4 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                <InfoIcon className="h-4 w-4 text-blue-400" />
+                Proposal Status Breakdown
+              </h4>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-white/10">
+                  <thead>
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Status</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Count</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    <tr>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-green-400 mr-2"></div>
+                          <span className="text-white">Active</span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-500">Total Votes</p>
-                          <p className="text-lg font-bold text-blue-500">
-                            {proposal.votedYesCount + proposal.votedNoCount}
-                          </p>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {activeAndNotExpired}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {totalProposals > 0 ? ((activeAndNotExpired / totalProposals) * 100).toFixed(1) : 0}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-yellow-400 mr-2"></div>
+                          <span className="text-white">Expired</span>
                         </div>
-                      </div>
-                      
-                      <div className="mt-4">
-                        <div className="flex justify-between mb-1">
-                          <div className="flex items-center">
-                            <div className="h-3 w-3 rounded-full bg-green-500 mr-2"></div>
-                            <span className="text-xs text-gray-500">Yes ({proposal.votedYesCount})</span>
-                          </div>
-                          <span className="text-xs text-green-500">
-                            {((proposal.votedYesCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100).toFixed(1)}%
-                          </span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {expiredProposals}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {totalProposals > 0 ? ((expiredProposals / totalProposals) * 100).toFixed(1) : 0}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-red-400 mr-2"></div>
+                          <span className="text-white">Delisted</span>
                         </div>
-                        <Progress 
-                          value={(proposal.votedYesCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100} 
-                          className="h-2 bg-gray-200" 
-                          indicatorClassName="bg-green-500" 
-                        />
-                      </div>
-                      
-                      <div className="mt-2">
-                        <div className="flex justify-between mb-1">
-                          <div className="flex items-center">
-                            <div className="h-3 w-3 rounded-full bg-red-500 mr-2"></div>
-                            <span className="text-xs text-gray-500">No ({proposal.votedNoCount})</span>
-                          </div>
-                          <span className="text-xs text-red-500">
-                            {((proposal.votedNoCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(proposal.votedNoCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100} 
-                          className="h-2 bg-gray-200" 
-                          indicatorClassName="bg-red-500" 
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {proposals.filter(p => p.status === 'Delisted').length}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-white">
+                        {totalProposals > 0 ? ((proposals.filter(p => p.status === 'Delisted').length / totalProposals) * 100).toFixed(1) : 0}%
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
-      </Card>
+      </div>
     </motion.div>
   );
 };

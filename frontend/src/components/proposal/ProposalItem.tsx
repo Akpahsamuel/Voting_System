@@ -8,15 +8,15 @@ import {
   CardContent, 
   CardFooter, 
   CardHeader 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+} from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { Separator } from "../../components/ui/separator";
+import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
 import { ThumbsUp, ThumbsDown, ExternalLink, Clock, AlertTriangle } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "../../components/ui/skeleton";
+import { Avatar, AvatarImage, AvatarFallback } from "../../components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { VoteModal } from "./VoteModal";
 
 interface ProposalItemsProps {
@@ -38,20 +38,20 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
 
   if (isPending) {
     return (
-      <Card className="w-full shadow-md border border-gray-200 dark:border-gray-700">
+      <Card className="w-full bg-white/10 backdrop-blur-md border-white/20">
         <CardHeader className="space-y-2 pb-4">
-          <Skeleton className="h-6 w-3/4" />
-          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-6 w-3/4 bg-white/20" />
+          <Skeleton className="h-4 w-full bg-white/20" />
         </CardHeader>
         <CardContent>
           <div className="flex justify-between space-x-4">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-8 w-16 bg-white/20" />
+            <Skeleton className="h-8 w-16 bg-white/20" />
           </div>
         </CardContent>
         <CardFooter className="flex justify-between pt-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-4 w-24 bg-white/20" />
+          <Skeleton className="h-8 w-28 bg-white/20" />
         </CardFooter>
       </Card>
     );
@@ -59,15 +59,15 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
 
   if (error) {
     return (
-      <Card className="w-full bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+      <Card className="w-full bg-red-950/30 backdrop-blur-md border-red-800/50">
         <CardHeader>
-          <div className="flex items-center text-red-600 dark:text-red-400 gap-2">
+          <div className="flex items-center text-red-400 gap-2">
             <AlertTriangle size={20} />
             <h3 className="font-medium">Error</h3>
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>
+          <p className="text-sm text-red-400">{error.message}</p>
         </CardContent>
       </Card>
     );
@@ -78,9 +78,9 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
   const proposal = parseProposal(dataResponse.data);
   
   if (!proposal) return (
-    <Card className="w-full bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+    <Card className="w-full bg-amber-950/30 backdrop-blur-md border-amber-800/50">
       <CardContent className="pt-6">
-        <p className="text-center text-amber-600 dark:text-amber-400">No data found</p>
+        <p className="text-center text-amber-400">No data found</p>
       </CardContent>
     </Card>
   );
@@ -96,23 +96,23 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
   return (
     <>
       <Card 
-        className={`w-full transition-all duration-200 ${
+        className={`w-full transition-all duration-200 bg-white/10 backdrop-blur-md border-white/20 ${
           isExpired 
-            ? "opacity-80 border-gray-200 dark:border-gray-800" 
-            : "hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
+            ? "opacity-80" 
+            : "hover:bg-white/15 hover:border-blue-400/40 cursor-pointer"
         }`}
         onClick={() => !isExpired && setIsModalOpen(true)}
       >
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start gap-2">
-            <h3 className={`font-semibold text-lg ${isExpired ? "text-gray-500 dark:text-gray-400" : "text-gray-800 dark:text-gray-200"}`}>
+            <h3 className={`font-semibold text-lg ${isExpired ? "text-white/60" : "text-white"}`}>
               {proposal.title}
             </h3>
             {voteNft && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Avatar className="h-8 w-8 ring-2 ring-blue-500 dark:ring-blue-400">
+                    <Avatar className="h-8 w-8 ring-2 ring-blue-500">
                       <AvatarImage src={voteNft.url} alt="Vote NFT" />
                       <AvatarFallback>V</AvatarFallback>
                     </Avatar>
@@ -124,42 +124,42 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
               </TooltipProvider>
             )}
           </div>
-          <p className={`text-sm ${isExpired ? "text-gray-500 dark:text-gray-500" : "text-gray-600 dark:text-gray-400"}`}>
+          <p className={`text-sm ${isExpired ? "text-white/50" : "text-white/70"}`}>
             {proposal.description}
           </p>
         </CardHeader>
         
         <CardContent className="pb-0">
           {/* Vote progress bar */}
-          <div className="flex w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+          <div className="flex w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
             <div 
-              className="bg-green-500 dark:bg-green-600"
+              className="bg-green-500/80"
               style={{ width: `${yesPercentage}%` }}
             />
             <div 
-              className="bg-red-500 dark:bg-red-600"
+              className="bg-red-500/80"
               style={{ width: `${100 - yesPercentage}%` }}
             />
           </div>
           
           <div className="flex justify-between items-center">
             <div className="flex gap-4">
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-500">
+              <div className="flex items-center gap-1 text-green-400">
                 <ThumbsUp size={16} />
                 <span className="font-medium">{proposal.votedYesCount}</span>
               </div>
-              <div className="flex items-center gap-1 text-red-600 dark:text-red-500">
+              <div className="flex items-center gap-1 text-red-400">
                 <ThumbsDown size={16} />
                 <span className="font-medium">{proposal.votedNoCount}</span>
               </div>
             </div>
             
             {isExpired ? (
-              <Badge variant={isDelisted ? "destructive" : "secondary"} className="text-xs">
+              <Badge variant={isDelisted ? "destructive" : "secondary"} className="text-xs bg-white/10 text-white/80 hover:bg-white/15">
                 {isDelisted ? "Delisted" : "Expired"}
               </Badge>
             ) : (
-              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 text-xs">
+              <div className="flex items-center gap-1 text-white/60 text-xs">
                 <Clock size={14} />
                 <span>{formatTimeRemaining(expiration)}</span>
               </div>
@@ -167,15 +167,15 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
           </div>
         </CardContent>
         
-        <CardFooter className="pt-3 mt-3 border-t border-gray-100 dark:border-gray-800">
+        <CardFooter className="pt-3 mt-3 border-t border-white/10">
           <div className="w-full flex justify-between items-center">
-            <Badge variant="outline" className={isExpired ? "bg-gray-100 dark:bg-gray-800" : ""}>
+            <Badge variant="outline" className="bg-white/10 text-white/80 hover:bg-white/15 border-white/20">
               {formatStatus(proposal.status.variant)}
             </Badge>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+              className="h-8 gap-1 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30"
               onClick={(e) => {
                 e.stopPropagation();
                 openInExplorer(getObjectUrl(id));
@@ -189,13 +189,13 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-black/90 backdrop-blur-md border-white/20 text-white">
           <VoteModal
             proposal={proposal}
             hasVoted={!!voteNft}
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            onVote={(votedYes: boolean) => {
+            onVote={() => {
               refetchProposal();
               onVoteTxSuccess();
               setIsModalOpen(false);
@@ -253,15 +253,9 @@ function formatStatus(status: string) {
 }
 
 function formatUnixTime(timestampMs: number) {
-  if (isUnixTimeExpired(timestampMs)) {
-    return "Expired";
-  }
-
-  return new Date(timestampMs).toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
+  return new Date(timestampMs).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
 }
