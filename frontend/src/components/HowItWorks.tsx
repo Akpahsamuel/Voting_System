@@ -95,19 +95,27 @@ const HowItWorks = () => {
           </div>
         </div>
 
-        {/* Add tech image similar to foreverbots.io */}
+        
         <motion.div
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-1/3 hidden lg:block"
-          initial={{ opacity: 0, x: -100 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 1 }}
-        >
-          <img
-            src="/sv.jpg"
-            alt="Technology"
-            className="w-full h-auto rounded-lg shadow-2xl"
-          />
-        </motion.div>
+  className="absolute right-0 top-1/2 -translate-y-1/2 w-1/3 hidden lg:block"
+  initial={{ opacity: 0, x: -100 }}
+  animate={{
+    opacity: 1,
+    x: 0,
+    rotate: [-5, 5, -5], // Tilting left and right
+  }}
+  transition={{
+    duration: 3, // Duration of one full tilt cycle
+    repeat: Infinity, // Repeat indefinitely
+    ease: "easeInOut", // Smooth easing
+  }}
+>
+  <img
+    src="/sv.jpg"
+    alt="Technology"
+    className="w-full h-auto rounded-lg shadow-2xl"
+  />
+</motion.div>
       </div>
     </section>
   );

@@ -1,13 +1,13 @@
 
 import { useEffect } from "react";
-import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
-import Features from "@/components/Features";
-import HowItWorks from "@/components/HowItWorks";
-import Statistics from "@/components/Statistics";
-import Security from "@/components/Security";
-import CTA from "@/components/CTA";
-import Footer from "@/components/Footer";
+import Navbar from "../components/Navbar";
+import Hero from "../components/Hero";
+import Features from "../components/Features";
+import HowItWorks from "../components/HowItWorks";
+import Statistics from "../components/Statistics";
+import Security from "../components/Security";
+import CTA from "../components/CTA";
+import Footer from "../components/Footer";
 
 const Index = () => {
   // Smooth scroll implementation for anchor links

@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Wallet } from "lucide-react";
+import { useNavigate } from "react-router-dom"; 
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -48,8 +49,8 @@ const Navbar = () => {
         </div>
         
         <div className="flex items-center">
-          <button className="text-command px-4 py-2 hover:bg-white hover:text-black transition-colors duration-300">
-            ENTER_TERMINAL
+          <button className="text-command px-4 py-2 hover:bg-white hover:text-black transition-colors duration-300" onClick={() => navigate("/admin")}>
+            Admin
           </button>
         </div>
       </div>

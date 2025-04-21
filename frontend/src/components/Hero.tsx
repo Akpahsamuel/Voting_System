@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { ArrowDown, Wallet, Info } from "lucide-react";
+import { ArrowDown} from "lucide-react";
+import { useNavigate } from "react-router-dom"; 
 
 // Animation floating node component
 const Node = ({ delay = 0, x = 0, y = 0, size = 20 }) => (
@@ -27,7 +28,7 @@ const Node = ({ delay = 0, x = 0, y = 0, size = 20 }) => (
 );
 
 // Connection line component
-const ConnectionLine = ({ startNode, endNode, delay = 0 }) => (
+const ConnectionLine = ({ startNode, endNode, delay = 0 }: { startNode: { x: number; y: number }; endNode: { x: number; y: number }; delay?: number }) => (
   <motion.div
     className="absolute bg-gradient-to-r from-[#0096FF]/30 to-[#7B61FF]/30 h-[1px]"
     style={{
@@ -62,6 +63,8 @@ const connections = [
 ];
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="min-h-screen flex flex-col justify-center items-center relative overflow-hidden pt-16 bg-black">
       {/* Background pattern */}
@@ -95,7 +98,7 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <button className="text-command hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3">
+            <button className="text-command hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3" onClick={() => navigate("/wallet")}>
               <span>CONNECT_WALLET</span>
             </button>
             
