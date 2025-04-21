@@ -160,10 +160,8 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
         <motion.div 
           key={`proposal-${id}`}
           layoutId={`proposal-${id}`}
-          initial={{ rotateX: -10, rotateY: 5, y: 20, opacity: 0 }}
+          initial={{ y: 20, opacity: 0 }}
           animate={{ 
-            rotateX: 0, 
-            rotateY: 0, 
             y: 0, 
             opacity: 1,
             boxShadow: isActive 
@@ -171,7 +169,7 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
               : "0 15px 30px -15px rgba(80,100,255,0.15)"
           }}
           transition={{ 
-            duration: 0.7, 
+            duration: 0.5, 
             ease: "easeOut", 
             boxShadow: {
               repeat: isActive ? Infinity : 0,
