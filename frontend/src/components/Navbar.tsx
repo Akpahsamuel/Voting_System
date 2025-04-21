@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom"; 
+import { NavLink, useNavigate } from "react-router-dom"; 
+import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu, X } from "lucide-react";
+import { ConnectButton } from "@mysten/dapp-kit";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,6 +22,34 @@ const Navbar = () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, [scrolled]);
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const navLinks = [
+    { to: "/", icon: Home, label: "Home" },
+    { to: "/proposal", icon: FileText, label: "Proposals" },
+    { to: "/wallet", icon: Wallet, label: "Wallet" },
+    { to: "/statistics", icon: BarChart2, label: "Statistics" },
+    { to: "/admin", icon: ShieldCheck, label: "Admin" }
+  ];
+
+  const renderNavLink = (link: { to: string, icon: any, label: string }) => (
+    <NavLink 
+      key={link.to}
+      to={link.to} 
+      className={({isActive}) => `
+        px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 
+        ${isActive 
+          ? "text-white bg-white/20" 
+          : "text-white/80 hover:text-white hover:bg-white/10"
+        }
+      `}
+    >
+      <link.icon size={18} /> {link.label}
+    </NavLink>
+  );
 
   return (
     <motion.nav
@@ -41,19 +72,46 @@ const Navbar = () => {
           <span className="text-tech text-xl font-bold text-white">SuiVote</span>
         </div>
         
+        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-8 text-sm">
-          <a href="#features" className="text-tech text-white/80 hover:text-white transition-colors">FEATURES</a>
-          <a href="#how-it-works" className="text-tech text-white/80 hover:text-white transition-colors">HOW_IT_WORKS</a>
-          <a href="#statistics" className="text-tech text-white/80 hover:text-white transition-colors">STATISTICS</a>
-          <a href="#security" className="text-tech text-white/80 hover:text-white transition-colors">SECURITY</a>
+          {navLinks.map(renderNavLink)}
         </div>
         
-        <div className="flex items-center">
-          <button className="text-command px-4 py-2 hover:bg-white hover:text-black transition-colors duration-300" onClick={() => navigate("/admin")}>
-            Admin
+        {/* Mobile Menu Toggle */}
+        <div className="flex items-center space-x-2">
+          <ConnectButton />
+          <button 
+            className="md:hidden text-white"
+            onClick={toggleMobileMenu}
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/90 z-40 pt-20">
+          <div className="flex flex-col items-center space-y-6">
+            {navLinks.map(link => (
+              <NavLink 
+                key={link.to}
+                to={link.to} 
+                className={({isActive}) => `
+                  px-6 py-3 rounded-md text-lg font-medium flex items-center gap-3 
+                  ${isActive 
+                    ? "text-white bg-white/20" 
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                  }
+                `}
+                onClick={toggleMobileMenu}
+              >
+                <link.icon size={24} /> {link.label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.nav>
   );
 };
