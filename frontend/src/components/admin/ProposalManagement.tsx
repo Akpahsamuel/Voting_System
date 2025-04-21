@@ -5,8 +5,54 @@ import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
 import { useAdminCap } from "../../hooks/useAdminCap";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { getObjectUrl, getTransactionUrl, openInExplorer } from "../../utils/explorerUtils";
+import { format } from "date-fns";
+import { 
+  AlertCircle, 
+  Check, 
+  ExternalLink, 
+  Eye, 
+  Loader2, 
+  MoreHorizontal, 
+  Trash2, 
+  Ban, 
+  CheckCircle
+} from "lucide-react";
+
+// Import shadcn components
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "../../components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
+import { Progress } from "../../components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 
 interface ProposalListItem {
   id: string;
@@ -41,7 +87,7 @@ const ProposalManagement = () => {
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   // Fetch all proposals
-  const { data: proposalsData } = useSuiClientQuery(
+  const { data: proposalsData, isLoading: isLoadingProposals } = useSuiClientQuery(
     "multiGetObjects",
     {
       ids: getProposalIds(),
@@ -85,11 +131,20 @@ const ProposalManagement = () => {
   }
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    return format(new Date(timestamp), "PPP p");
   };
 
   const isExpired = (timestamp: number) => {
     return new Date(timestamp) < new Date();
+  };
+
+  const getTotalVotes = (yes: number, no: number) => {
+    return yes + no;
+  };
+
+  const getVotePercentage = (count: number, total: number) => {
+    if (total === 0) return 0;
+    return (count / total) * 100;
   };
 
   const handleDelist = async (proposalId: string) => {
@@ -120,8 +175,8 @@ const ProposalManagement = () => {
           },
         }
       );
-    } catch (error) {
-      toast.error(`Error: ${error}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || error}`);
       setLoading(null);
     }
   };
@@ -154,8 +209,8 @@ const ProposalManagement = () => {
           },
         }
       );
-    } catch (error) {
-      toast.error(`Error: ${error}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || error}`);
       setLoading(null);
     }
   };
@@ -190,148 +245,239 @@ const ProposalManagement = () => {
           },
         }
       );
-    } catch (error) {
-      toast.error(`Error: ${error}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || error}`);
       setLoading(null);
       setDeleteConfirm(null);
     }
   };
 
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6">Manage Proposals</h2>
+    <div className="container mx-auto px-4 py-8">
+      <Card className="border shadow-md bg-card">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold tracking-tight flex items-center justify-between">
+            <span>Manage Proposals</span>
+            {isLoadingProposals && (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            )}
+          </CardTitle>
+          <CardDescription>
+            View and manage all governance proposals
+          </CardDescription>
+        </CardHeader>
 
-      {lastTxDigest && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md mb-4">
-          <p className="text-sm text-blue-800 dark:text-blue-300 mb-1">
-            Transaction successfully submitted to the blockchain!
-          </p>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => openInExplorer(getTransactionUrl(lastTxDigest.digest))}
-              className="text-xs text-white hover:underline bg-blue-500 dark:bg-blue-600 px-2 py-1 rounded"
-            >
-              View Transaction on Scan
-            </button>
-            <button
-              onClick={() => openInExplorer(getObjectUrl(lastTxDigest.id))}
-              className="text-xs text-white hover:underline bg-blue-500 dark:bg-blue-600 px-2 py-1 rounded"
-            >
-              View Proposal on Scan
-            </button>
-          </div>
-        </div>
-      )}
+        <CardContent>
+          {lastTxDigest && (
+            <Alert className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <AlertTitle className="text-blue-800 dark:text-blue-300">Transaction Success</AlertTitle>
+              <AlertDescription className="text-blue-700 dark:text-blue-400">
+                <p className="mb-2">Transaction successfully submitted to the blockchain!</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="bg-blue-100 hover:bg-blue-200 border-blue-200 text-blue-800 dark:bg-blue-800/30 dark:hover:bg-blue-800/50 dark:border-blue-700 dark:text-blue-300"
+                    onClick={() => openInExplorer(getTransactionUrl(lastTxDigest.digest))}
+                  >
+                    <ExternalLink className="mr-1 h-3 w-3" />
+                    View Transaction
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline" 
+                    className="bg-blue-100 hover:bg-blue-200 border-blue-200 text-blue-800 dark:bg-blue-800/30 dark:hover:bg-blue-800/50 dark:border-blue-700 dark:text-blue-300"
+                    onClick={() => openInExplorer(getObjectUrl(lastTxDigest.id))}
+                  >
+                    <Eye className="mr-1 h-3 w-3" />
+                    View Proposal
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
-      {proposals.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No proposals found</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-100 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Votes
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Expiration
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-              {proposals.map((proposal) => (
-                <tr key={proposal.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{proposal.title}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">{proposal.description}</div>
-                    <div className="mt-1">
-                      <button
-                        onClick={() => openInExplorer(getObjectUrl(proposal.id))}
-                        className="text-xs text-white hover:underline bg-blue-500 dark:bg-blue-600 px-2 py-1 rounded"
-                      >
-                        View on Scan
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        proposal.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {proposal.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    Yes: {proposal.votedYesCount} / No: {proposal.votedNoCount}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    <span className={isExpired(proposal.expiration) ? "text-red-500" : ""}>
-                      {formatDate(proposal.expiration)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {deleteConfirm === proposal.id ? (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600 dark:text-gray-400">Confirm:</span>
-                        <button
-                          onClick={() => handleDelete(proposal.id)}
-                          disabled={loading === proposal.id}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 font-medium"
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(null)}
-                          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex space-x-2">
-                        {proposal.status === "Active" ? (
-                          <button
-                            onClick={() => handleDelist(proposal.id)}
-                            disabled={loading === proposal.id}
-                            className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 mr-2 disabled:opacity-50"
+          {isLoadingProposals ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Loading proposals...</p>
+            </div>
+          ) : proposals.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-lg bg-muted/20">
+              <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+              <h3 className="text-lg font-medium text-muted-foreground mb-1">No proposals found</h3>
+              <p className="text-sm text-muted-foreground/80">Create new proposals to see them listed here</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-1/3">Title</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Votes</TableHead>
+                    <TableHead>Expiration</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {proposals.map((proposal) => {
+                    const totalVotes = getTotalVotes(proposal.votedYesCount, proposal.votedNoCount);
+                    const yesPercentage = getVotePercentage(proposal.votedYesCount, totalVotes);
+                    const noPercentage = getVotePercentage(proposal.votedNoCount, totalVotes);
+                    
+                    return (
+                      <TableRow key={proposal.id}>
+                        <TableCell className="font-medium">
+                          <div className="space-y-1">
+                            <div className="font-semibold">{proposal.title}</div>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{proposal.description}</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7"
+                              onClick={() => openInExplorer(getObjectUrl(proposal.id))}
+                            >
+                              <ExternalLink className="mr-1 h-3 w-3" />
+                              View on Scan
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={proposal.status === "Active" ? "default" : "secondary"}
+                            className={proposal.status === "Active" 
+                              ? "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400" 
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                            }
                           >
-                            {loading === proposal.id ? "Processing..." : "Delist"}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActivate(proposal.id)}
-                            disabled={loading === proposal.id}
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 mr-2 disabled:opacity-50"
-                          >
-                            {loading === proposal.id ? "Processing..." : "Activate"}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setDeleteConfirm(proposal.id)}
-                          disabled={loading === proposal.id}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                            {proposal.status === "Active" ? (
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                            ) : (
+                              <Ban className="mr-1 h-3 w-3" />
+                            )}
+                            {proposal.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-green-600 dark:text-green-400">Yes: {proposal.votedYesCount}</span>
+                              <span className="text-red-600 dark:text-red-400">No: {proposal.votedNoCount}</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div className="flex h-full">
+                                <div 
+                                  className="bg-green-500 dark:bg-green-600" 
+                                  style={{ width: `${yesPercentage}%` }}
+                                />
+                                <div 
+                                  className="bg-red-500 dark:bg-red-600" 
+                                  style={{ width: `${noPercentage}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="text-xs text-center text-muted-foreground">
+                              {totalVotes} total votes
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={isExpired(proposal.expiration) ? "text-red-500 dark:text-red-400 font-medium" : ""}
+                                >
+                                  {formatDate(proposal.expiration)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                {isExpired(proposal.expiration) ? "Expired" : "Active expiration date"}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <AlertDialog open={deleteConfirm === proposal.id} onOpenChange={(open) => {
+                            if (!open) setDeleteConfirm(null);
+                          }}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" disabled={loading === proposal.id}>
+                                  {loading === proposal.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {proposal.status === "Active" ? (
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDelist(proposal.id)}
+                                    className="text-amber-600 dark:text-amber-400"
+                                  >
+                                    <Ban className="mr-2 h-4 w-4" />
+                                    Delist Proposal
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem 
+                                    onClick={() => handleActivate(proposal.id)}
+                                    className="text-green-600 dark:text-green-400"
+                                  >
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Activate Proposal
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem 
+                                  onClick={() => setDeleteConfirm(proposal.id)}
+                                  className="text-red-600 dark:text-red-400"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Proposal
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Proposal</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this proposal? This action cannot be undone and will permanently remove the proposal and associated data.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(proposal.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                  {loading === proposal.id ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    "Delete"
+                                  )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

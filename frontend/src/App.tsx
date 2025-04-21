@@ -1,41 +1,37 @@
 import React from "react";
-import { useTheme } from "./providers/theme/ThemeContext";
+import { Toaster } from "./components/ui/toaster";
+import { Toaster as Sonner } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Index from "./pages/Index";
+import NotFound from "./pages/NotFound";
 import ProposalView from "./views/ProposalView";
-import Navbar from "./components/Navbar";
 import WalletView from "./views/WalletView";
 import AdminDashboard from "./views/AdminDashboard";
 import StatisticsView from "./views/StatisticsView";
-import { useNavigation } from "./providers/navigation/NavigationContext";
 
-const Pages = () => {
-  const { currentPage } = useNavigation();
 
-  switch(currentPage) {
-    case "/":
-      return <ProposalView />
-    case "/wallet":
-      return <WalletView />
-    case "/admin":
-      return <AdminDashboard />
-    case "/statistics":
-      return <StatisticsView />
-    default:
-      return <div className="text-center">Page not found!</div>
-  }
-};
+const queryClient = new QueryClient();
 
-const App: React.FC = () => {
-  const { darkMode }  = useTheme();
-
+const App = () => {
   return (
-    <div className={`${darkMode ? "dark" : ""}`}>
-      <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-        <Navbar />
-        <div className="max-w-screen-xl m-auto pt-16">
-          <Pages />
-        </div>
-      </div>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <TooltipProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/proposal" element={<ProposalView />} />
+            <Route path="/wallet" element={<WalletView />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/statistics" element={<StatisticsView  />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <Toaster />
+          <Sonner />
+        </TooltipProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 
