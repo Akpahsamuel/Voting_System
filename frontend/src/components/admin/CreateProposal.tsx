@@ -3,12 +3,40 @@ import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { useAdminCap } from "../../hooks/useAdminCap";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { cn } from "../../lib/utils";
+
+// Import shadcn components
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
+import { Calendar } from "../../components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+
+// Form schema validation
+const formSchema = z.object({
+  title: z.string().min(3, { message: "Title must be at least 3 characters" }).max(100, { message: "Title cannot exceed 100 characters" }),
+  description: z.string().min(10, { message: "Description must be at least 10 characters" }),
+  expiration: z.date({
+    required_error: "Expiration date is required",
+  }).refine((date) => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return date >= tomorrow;
+  }, {
+    message: "Expiration date must be at least tomorrow",
+  }),
+});
 
 const CreateProposal = () => {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [expiration, setExpiration] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
   const packageId = useNetworkVariable("packageId");
@@ -16,11 +44,18 @@ const CreateProposal = () => {
   const { adminCapId } = useAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title || !description || !expiration || !adminCapId) {
-      toast.error("All fields are required");
+  // Initialize form with react-hook-form and zod validation
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+    },
+  });
+
+  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!adminCapId) {
+      toast.error("Admin capability not found");
       return;
     }
     
@@ -28,8 +63,7 @@ const CreateProposal = () => {
       setIsLoading(true);
       
       // Calculate the expiration timestamp (in milliseconds)
-      const expirationDate = new Date(expiration);
-      const expirationMs = expirationDate.getTime();
+      const expirationMs = values.expiration.getTime();
       
       // Create a new proposal transaction
       const tx = new Transaction();
@@ -37,8 +71,8 @@ const CreateProposal = () => {
         target: `${packageId}::proposal::create`,
         arguments: [
           tx.object(adminCapId),
-          tx.pure.string(title),
-          tx.pure.string(description),
+          tx.pure.string(values.title),
+          tx.pure.string(values.description),
           tx.pure.u64(expirationMs)
         ],
       });
@@ -58,9 +92,7 @@ const CreateProposal = () => {
       }, {
         onSuccess: () => {
           toast.success("Proposal created successfully!");
-          setTitle("");
-          setDescription("");
-          setExpiration("");
+          form.reset();
           setIsLoading(false);
         },
         onError: (error) => {
@@ -68,85 +100,141 @@ const CreateProposal = () => {
           setIsLoading(false);
         }
       });
-    } catch (error) {
-      toast.error(`Error: ${error}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || error}`);
       setIsLoading(false);
     }
   };
   
-  const getMinDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  };
-  
   return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6">Create New Proposal</h2>
-      
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-700 p-6 rounded-lg shadow-sm">
-        <div className="mb-4">
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Proposal Title
-          </label>
-          <input
-            type="text"
-            id="title"
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            placeholder="Enter a clear, concise title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            disabled={isLoading}
-          />
-        </div>
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <Card className="border shadow-md bg-card">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold tracking-tight">Create New Proposal</CardTitle>
+          <CardDescription>
+            Fill out the form below to create a new governance proposal
+          </CardDescription>
+        </CardHeader>
         
-        <div className="mb-4">
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Description
-          </label>
-          <textarea
-            id="description"
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white h-32"
-            placeholder="Describe the proposal in detail"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-            disabled={isLoading}
-          ></textarea>
-        </div>
-        
-        <div className="mb-6">
-          <label htmlFor="expiration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Expiration Date
-          </label>
-          <input
-            type="date"
-            id="expiration"
-            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            min={getMinDate()}
-            value={expiration}
-            onChange={(e) => setExpiration(e.target.value)}
-            required
-            disabled={isLoading}
-          />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            The proposal will be active until this date.
-          </p>
-        </div>
-        
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors disabled:bg-gray-400"
-          >
-            {isLoading ? "Creating..." : "Create Proposal"}
-          </button>
-        </div>
-      </form>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Proposal Title</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter a clear, concise title" 
+                        {...field} 
+                        className="w-full" 
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Keep your title descriptive but concise
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Describe the proposal in detail" 
+                        {...field} 
+                        className="min-h-32 resize-y" 
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Provide enough context for voters to make an informed decision
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="expiration"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Expiration Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                            disabled={isLoading}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Select expiration date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const tomorrow = new Date(today);
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            return date < tomorrow;
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormDescription>
+                      The proposal will be active until this date
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="pt-4">
+                <Button 
+                  type="submit" 
+                  className="w-full sm:w-auto ml-auto" 
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Proposal"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-export default CreateProposal; 
+export default CreateProposal;
