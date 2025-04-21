@@ -22,15 +22,15 @@ const ProposalView = () => {
     }
   );
 
-  if (isPending) return <div className="text-center text-gray-500">Loading...</div>;
-  if (error) return <div className="text-red-500">Error: {error.message}</div>;
-  if (!dataResponse.data) return <div className="text-center text-red-500">Not Found...</div>;
+  if (isPending) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern">Loading...</div>;
+  if (error) return <div className="text-red-500 min-h-screen bg-black bg-grid-pattern">Error: {error.message}</div>;
+  if (!dataResponse.data) return <div className="text-center text-red-500 min-h-screen bg-black bg-grid-pattern">Not Found...</div>;
 
   const voteNfts = extractVoteNfts(voteNftsRes);
   const proposalIds = getDashboardFields(dataResponse.data)?.proposals_ids || [];
 
   return (
-    <>
+    <div className="min-h-screen bg-black bg-grid-pattern text-white">
       <Navbar />
       <div className="container mx-auto px-4 pt-24">
         <div className="mb-8">
@@ -58,7 +58,7 @@ const ProposalView = () => {
           )}
         </div>
       </div>
-    </>
+    </div>
   )
 };
 
