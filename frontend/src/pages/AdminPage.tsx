@@ -1,13 +1,14 @@
 import { FC, useState, useEffect } from 'react';
 import { useAdminCap } from "../hooks/useAdminCap";
 import ProposalManagement from "../components/admin/ProposalManagement";
+import GrantAdmin from "../components/admin/GrantAdmin";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Proposal } from "../types";
 import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban } from 'lucide-react';
+import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from '../components/ui/badge';
 import { useNetworkVariable } from "../config/networkConfig";
@@ -238,6 +239,14 @@ export const AdminPage: FC = () => {
             >
               <FileText className="mr-2 h-4 w-4" />
               Proposal Management
+            </Button>
+            <Button 
+              variant={activeTab === "grant_admin" ? "default" : "ghost"}
+              className={activeTab === "grant_admin" ? "bg-blue-600" : "hover:bg-blue-900/30"}
+              onClick={() => setActiveTab("grant_admin")}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Grant Admin
             </Button>
             <Button 
               variant={activeTab === "analytics" ? "default" : "ghost"}
@@ -556,6 +565,10 @@ export const AdminPage: FC = () => {
 
             {activeTab === "proposals" && (
               <ProposalManagement />
+            )}
+
+            {activeTab === "grant_admin" && (
+              <GrantAdmin />
             )}
 
             {activeTab === "analytics" && (
