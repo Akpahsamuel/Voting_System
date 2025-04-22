@@ -4,7 +4,7 @@ import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 import { useEffect, useState } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useVoteNfts } from "../hooks/useVoteNfts";
-import { VoteNft } from "../types";
+import { VoteNft, Proposal, ProposalStatus } from "../types";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, TimeScale,} from 'chart.js';
 import { Pie, Bar, Line } from 'react-chartjs-2';
 import 'chart.js/auto';
@@ -16,7 +16,6 @@ import React, { FC } from 'react';
 import Navbar from '../components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Proposal } from '../types';
 
 // Register Chart.js components
 ChartJS.register(
@@ -32,11 +31,20 @@ ChartJS.register(
   TimeScale
 );
 
-type SuiID = string;
+// Define simplified proposal type for statistics
+interface StatProposal {
+  id: string;
+  title: string;
+  votedYesCount: number;
+  votedNoCount: number;
+  expiration: number;
+  status: string;
+  creator: string;
+}
 
 export const StatisticsView: FC = () => {
   const dashboardId = useNetworkVariable("dashboardId");
-  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [proposals, setProposals] = useState<StatProposal[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'voting' | 'user'>('overview');
   const account = useCurrentAccount();
   const { data: voteNftsRes } = useVoteNfts();
@@ -92,7 +100,7 @@ export const StatisticsView: FC = () => {
           creator: fields.creator || "Unknown"
         };
       })
-      .filter(Boolean) as Proposal[];
+      .filter((item): item is StatProposal => item !== null);
     
     setProposals(parsedProposals);
     setIsLoading(false);
@@ -165,7 +173,7 @@ export const StatisticsView: FC = () => {
       {
         label: 'Proposal Status',
         data: [
-          activeProposals - expiredProposals, 
+          activeAndNotExpired, 
           delistedProposals,
           expiredProposals
         ],
@@ -238,52 +246,266 @@ export const StatisticsView: FC = () => {
     <div className="min-h-screen bg-black bg-grid-pattern text-white">
       <Navbar />
       <div className="container mx-auto px-4 py-8 pt-24">
-        <h1 className="text-3xl font-bold mb-8 text-white">Governance Statistics</h1>
+        <h1 className="text-3xl font-bold mb-4 text-white">Governance Statistics</h1>
         
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Time-based Analytics Card */}
-            <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">Time-based Analytics</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-black/30 p-4 rounded-lg">
-                  <h3 className="text-lg font-medium mb-3">Proposal Creation Trend</h3>
-                  <div className="h-48 flex items-center justify-center text-white/60">
-                    [Interactive chart will appear here]
+          <>
+            <Tabs defaultValue="overview" className="w-full mb-8">
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="voting">Voting Statistics</TabsTrigger>
+                <TabsTrigger value="user">Your Activity</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="overview" className="space-y-6">
+                {/* Stats Summary */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Overview</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Total Proposals</h3>
+                      <p className="text-3xl font-bold text-blue-400">{totalProposals}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Active Proposals</h3>
+                      <p className="text-3xl font-bold text-green-400">{activeAndNotExpired}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Total Votes</h3>
+                      <p className="text-3xl font-bold text-purple-400">{totalVotes}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Your Votes</h3>
+                      <p className="text-3xl font-bold text-orange-400">{userVotedCount}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-black/30 p-4 rounded-lg">
-                  <h3 className="text-lg font-medium mb-3">Expiration Distribution</h3>
-                  <div className="h-48 flex items-center justify-center text-white/60">
-                    [Pie chart will appear here]
+                
+                {/* Time-based Analytics Card */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Time-based Analytics</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Vote Trend</h3>
+                      <div className="h-64">
+                        <Line 
+                          data={timelineData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              },
+                              title: {
+                                display: false
+                              }
+                            },
+                            scales: {
+                              y: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              },
+                              x: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Proposal Status</h3>
+                      <div className="h-64">
+                        <Pie 
+                          data={statusDistributionData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            
-            {/* Outcome Visualization Card */}
-            <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">Outcome Visualization</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-black/30 p-4 rounded-lg">
-                  <h3 className="text-lg font-medium mb-3">Vote Distribution</h3>
-                  <div className="h-48 flex items-center justify-center text-white/60">
-                    [Pie chart will appear here]
+              </TabsContent>
+              
+              <TabsContent value="voting" className="space-y-6">
+                {/* Outcome Visualization Card */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Outcome Visualization</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Vote Distribution</h3>
+                      <div className="h-64">
+                        <Pie 
+                          data={voteDistributionData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Top Proposals by Votes</h3>
+                      <div className="h-64">
+                        <Bar 
+                          data={topProposalsData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y' as const,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            },
+                            scales: {
+                              y: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              },
+                              x: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-black/30 p-4 rounded-lg">
-                  <h3 className="text-lg font-medium mb-3">Victory Margin Analysis</h3>
-                  <div className="h-48 flex items-center justify-center text-white/60">
-                    [Bar chart will appear here]
-                  </div>
+              </TabsContent>
+              
+              <TabsContent value="user" className="space-y-6">
+                {/* User Activity Card - Dedicated Tab */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Your Voting Activity</h2>
+                  
+                  {!account ? (
+                    <div className="bg-black/30 p-6 rounded-lg text-center">
+                      <p className="text-white/70 mb-4">Connect your wallet to see your voting activity</p>
+                      <div className="flex justify-center">
+                        <ConnectButton />
+                      </div>
+                    </div>
+                  ) : userVotedCount === 0 ? (
+                    <div className="bg-black/30 p-6 rounded-lg text-center">
+                      <p className="text-white/70">You haven't voted on any proposals yet</p>
+                      <Button 
+                        className="mt-4 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => window.location.href = '/proposal'}
+                      >
+                        View Available Proposals
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Proposals Voted</h3>
+                          <p className="text-2xl font-bold text-blue-400">{userVotedCount}</p>
+                        </div>
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Participation Rate</h3>
+                          <p className="text-2xl font-bold text-green-400">{userParticipationRate.toFixed(1)}%</p>
+                        </div>
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Voter Rank</h3>
+                          <p className="text-2xl font-bold text-purple-400">
+                            {userVotedCount > 3 ? "Power Voter" : userVotedCount > 0 ? "Active Voter" : "New Voter"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-black/30 rounded-lg overflow-hidden">
+                        <div className="px-4 py-3 bg-black/50">
+                          <h3 className="font-medium">Your Voted Proposals</h3>
+                        </div>
+                        
+                        <div className="divide-y divide-white/10">
+                          {userVotedProposalDetails.length > 0 ? (
+                            userVotedProposalDetails.map((proposal) => (
+                              <div key={proposal.id} className="p-4 hover:bg-white/5 transition-colors">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-medium text-white">{proposal.title}</h4>
+                                    <div className="flex items-center mt-1 text-sm text-white/60">
+                                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${proposal.status === 'Active' ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                                      {proposal.status}
+                                      <span className="mx-2">•</span>
+                                      {new Date(proposal.expiration).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="flex items-center gap-4">
+                                      <div>
+                                        <div className="text-xs text-white/60">Yes</div>
+                                        <div className="font-medium text-green-400">{proposal.votedYesCount}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-white/60">No</div>
+                                        <div className="font-medium text-red-400">{proposal.votedNoCount}</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Vote progress bar */}
+                                <div className="mt-3">
+                                  <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
+                                    {proposal.votedYesCount + proposal.votedNoCount > 0 && (
+                                      <div 
+                                        className="h-full bg-gradient-to-r from-green-400 to-blue-500"
+                                        style={{ 
+                                          width: `${(proposal.votedYesCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100}%` 
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="p-4 text-center text-white/60">No voted proposals found</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </div>
     </div>
