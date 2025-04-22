@@ -7,15 +7,18 @@ import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Proposal } from "../types";
 import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal } from 'lucide-react';
+import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from '../components/ui/badge';
+import { useNetworkVariable } from "../config/networkConfig";
+import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 
 // Define SuiID type
 type SuiID = string;
 
 export const AdminPage: FC = () => {
   const { hasAdminCap, adminCapId, isLoading: isLoadingAdminCap } = useAdminCap();
+  const dashboardId = useNetworkVariable("dashboardId");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +30,7 @@ export const AdminPage: FC = () => {
     lastIncident: "None"
   });
 
-  // Placeholder for analytics data
+  // Analytics data state
   const [analyticsData, setAnalyticsData] = useState({
     totalProposals: 0,
     activeProposals: 0,
@@ -41,97 +44,129 @@ export const AdminPage: FC = () => {
     activeUsersChange: -2.3
   });
 
-  // Fetch proposals for statistics
-  useEffect(() => {
-    // Sample data for demonstration purposes
-    const sampleProposals: Proposal[] = [
-      {
-        id: "sample1" as any,
-        title: "Governance Proposal 1",
-        description: "Increase funding for development",
-        status: { variant: "Active" },
-        votedYesCount: 250,
-        votedNoCount: 50,
-        expiration: Date.now() + 5 * 24 * 60 * 60 * 1000, // 5 days from now
-        creator: "0x123",
-        voter_registry: []
+  // Fetch dashboard data to get proposal IDs
+  const { data: dashboardData } = useSuiClientQuery(
+    "getObject",
+    {
+      id: dashboardId,
+      options: {
+        showContent: true,
       },
-      {
-        id: "sample2" as any,
-        title: "Governance Proposal 2",
-        description: "Change voting period to 5 days",
-        status: { variant: "Active" },
-        votedYesCount: 180, 
-        votedNoCount: 120,
-        expiration: Date.now() + 2 * 24 * 60 * 60 * 1000, // 2 days from now
-        creator: "0x456",
-        voter_registry: []
+    }
+  );
+  
+  function getProposalIds() {
+    if (!dashboardData?.data) return [];
+    const dashboardObj = dashboardData.data as SuiObjectData;
+    if (dashboardObj.content?.dataType !== "moveObject") return [];
+    return (dashboardObj.content.fields as any)?.proposals_ids || [];
+  }
+  
+  // Fetch all proposals
+  const { data: proposalsData, isPending } = useSuiClientQuery(
+    "multiGetObjects",
+    {
+      ids: getProposalIds(),
+      options: {
+        showContent: true,
       },
-      {
-        id: "sample3" as any,
-        title: "Treasury Distribution",
-        description: "Distribute 10% of treasury to active voters",
-        status: { variant: "Active" },
-        votedYesCount: 75,
-        votedNoCount: 25,
-        expiration: Date.now() + 1 * 24 * 60 * 60 * 1000, // 1 day from now
-        creator: "0x789",
-        voter_registry: []
-      },
-      {
-        id: "sample4" as any,
-        title: "Protocol Upgrade",
-        description: "Implement new consensus algorithm",
-        status: { variant: "Delisted" },
-        votedYesCount: 320,
-        votedNoCount: 280,
-        expiration: Date.now() - 2 * 24 * 60 * 60 * 1000, // 2 days ago
-        creator: "0xabc",
-        voter_registry: []
-      },
-      {
-        id: "sample5" as any,
-        title: "Community Fund Allocation",
-        description: "Allocate funds for community initiatives",
-        status: { variant: "Active" },
-        votedYesCount: 450, 
-        votedNoCount: 150,
-        expiration: Date.now() - 1 * 24 * 60 * 60 * 1000, // 1 day ago
-        creator: "0xdef",
-        voter_registry: []
-      },
-      // Generate more sample proposals for better statistics
-      ...Array.from({ length: 15 }, (_, i) => ({
-        id: `generated${i}` as any,
-        title: `Generated Proposal ${i+1}`,
-        description: `This is an auto-generated proposal for testing #${i+1}`,
-        status: { variant: Math.random() > 0.3 ? "Active" : "Delisted" as "Active" | "Delisted" },
-        votedYesCount: Math.floor(Math.random() * 500),
-        votedNoCount: Math.floor(Math.random() * 500),
-        expiration: Date.now() + (Math.random() * 10 - 5) * 24 * 60 * 60 * 1000, // Random date between -5 and +5 days
-        creator: `0xgen${i}`,
-        voter_registry: []
-      }))
-    ];
+    }
+  );
 
-    // Update analytics data based on sample proposals
-    const activeCount = sampleProposals.filter(p => p.status.variant === "Active").length;
-    const delistedCount = sampleProposals.filter(p => p.status.variant === "Delisted").length;
-    const totalVotes = sampleProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
+  // Process proposal data when it changes
+  useEffect(() => {
+    if (!proposalsData || !Array.isArray(proposalsData) || isPending) return;
+    
+    const parsedProposals = proposalsData
+      .map((item: SuiObjectResponse) => {
+        if (!item.data) return null;
+        const obj = item.data as SuiObjectData;
+        if (obj.content?.dataType !== "moveObject") return null;
+        
+        const fields = obj.content.fields as any;
+        return {
+          id: obj.objectId as SuiID,
+          title: fields.title,
+          description: fields.description,
+          votedYesCount: Number(fields.voted_yes_count),
+          votedNoCount: Number(fields.voted_no_count),
+          expiration: Number(fields.expiration),
+          status: fields.status,
+          creator: fields.creator || "Unknown",
+          voter_registry: fields.voter_registry || []
+        };
+      })
+      .filter(Boolean) as unknown as Proposal[];
+    
+    // Perform analytics calculations based on real data
+    const now = Date.now();
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    
+    const activeCount = parsedProposals.filter(p => p.status.variant === "Active").length;
+    const delistedCount = parsedProposals.filter(p => p.status.variant === "Delisted").length;
+    const totalVotes = parsedProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
+    
+    // Count proposals created within the last week (approximation using expiration)
+    const recentProposals = parsedProposals.filter(p => p.expiration > now && p.expiration - (7 * 24 * 60 * 60 * 1000) < now);
+    
+    // Estimate vote activity in the last week (this is an estimation)
+    // In a real app, you would track this with timestamps on votes
+    const recentVotesEstimate = Math.floor(totalVotes * 0.3);
+    
+    // For change percentages, we're using placeholder values since we don't have historical data
+    // In a real app, you would compare current week to previous week
     
     setAnalyticsData({
-      ...analyticsData,
-      totalProposals: sampleProposals.length,
+      totalProposals: parsedProposals.length,
       activeProposals: activeCount,
       delistedProposals: delistedCount,
       totalVotes: totalVotes,
-      votesLastWeek: Math.floor(totalVotes * 0.3), // Simulated weekly data
-      proposalsLastWeek: Math.floor(sampleProposals.length * 0.2) // Simulated weekly data
+      votesLastWeek: recentVotesEstimate,
+      votesWeeklyChange: 8.2, // Placeholder - in a real app, calculate from historical data
+      proposalsLastWeek: recentProposals.length,
+      proposalsWeeklyChange: 12.5, // Placeholder - in a real app, calculate from historical data
+      activeUsers: parsedProposals.reduce((set, p) => {
+        p.voter_registry.forEach(voter => set.add(voter));
+        return set;
+      }, new Set<string>()).size,
+      activeUsersChange: -2.3 // Placeholder - in a real app, calculate from historical data
     });
 
-    setProposals(sampleProposals);
+    setProposals(parsedProposals);
     setIsLoading(false);
-  }, []);
+  }, [proposalsData, isPending]);
+
+  // Utility functions
+  const calculateVotePercentage = (isYes: boolean): number => {
+    const totalYesVotes = proposals.reduce((sum: number, p: Proposal) => sum + p.votedYesCount, 0);
+    const totalNoVotes = proposals.reduce((sum: number, p: Proposal) => sum + p.votedNoCount, 0);
+    const total = totalYesVotes + totalNoVotes;
+    
+    if (total === 0) return 0;
+    return isYes ? (totalYesVotes / total * 100) : (totalNoVotes / total * 100);
+  };
+
+  const isExpired = (unixTimeMs: number): boolean => {
+    return new Date(unixTimeMs) < new Date();
+  };
+
+  const formatTimeRemaining = (timestampMs: number): string => {
+    const now = new Date();
+    const expirationDate = new Date(timestampMs);
+    
+    if (expirationDate < now) return "Expired";
+    
+    const diffMs = expirationDate.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (diffDays > 0) {
+      return `${diffDays}d ${diffHours}h left`;
+    } else {
+      const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${diffHours}h ${diffMinutes}m left`;
+    }
+  };
 
   if (isLoadingAdminCap) {
     return (
@@ -268,8 +303,21 @@ export const AdminPage: FC = () => {
                     <CardContent>
                       <div className="text-3xl font-bold text-white">{analyticsData.activeProposals}</div>
                       <div className="mt-1 flex items-baseline justify-between">
-                        <p className="text-xs text-white/50">{(analyticsData.activeProposals / analyticsData.totalProposals * 100).toFixed(1)}% of total</p>
-                        <Badge variant="outline" className="text-emerald-300 border-emerald-500/30 bg-emerald-900/30">Healthy</Badge>
+                        <p className="text-xs text-white/50">
+                          {analyticsData.totalProposals > 0 
+                            ? (analyticsData.activeProposals / analyticsData.totalProposals * 100).toFixed(1) 
+                            : "0"}% of total
+                        </p>
+                        <Badge 
+                          variant="outline" 
+                          className={`
+                            ${analyticsData.activeProposals > 0 
+                              ? "text-emerald-300 border-emerald-500/30 bg-emerald-900/30" 
+                              : "text-amber-300 border-amber-500/30 bg-amber-900/30"}
+                          `}
+                        >
+                          {analyticsData.activeProposals > 0 ? "Healthy" : "No Active Proposals"}
+                        </Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -296,7 +344,7 @@ export const AdminPage: FC = () => {
                           <span className="ml-1 text-white/50">vs last week</span>
                         </div>
                       </div>
-                      <p className="mt-2 text-xs text-white/50">{analyticsData.votesLastWeek.toLocaleString()} new this week</p>
+                      <p className="mt-2 text-xs text-white/50">{analyticsData.votesLastWeek.toLocaleString()} estimated new this week</p>
                     </CardContent>
                   </Card>
 
@@ -385,36 +433,32 @@ export const AdminPage: FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card className="md:col-span-2 bg-black/30 border-white/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xl font-medium">Recent Activity</CardTitle>
-                      <CardDescription>Latest governance transactions and events</CardDescription>
+                      <CardTitle className="text-xl font-medium">Recent Proposals</CardTitle>
+                      <CardDescription>Latest proposals in the system</CardDescription>
                     </CardHeader>
                     <CardContent className="px-2">
                       <div className="space-y-2">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div key={i} className="flex items-center p-2 hover:bg-white/5 rounded-md transition-colors">
+                        {proposals.slice(0, 5).map((proposal, i) => (
+                          <div key={`proposal-${i}`} className="flex items-center p-2 hover:bg-white/5 rounded-md transition-colors">
                             <div className={`h-8 w-8 rounded-full flex items-center justify-center 
-                              ${i % 3 === 0 ? 'bg-blue-900/50 text-blue-400' : 
-                                i % 3 === 1 ? 'bg-emerald-900/50 text-emerald-400' : 
-                                'bg-purple-900/50 text-purple-400'}`
+                              ${proposal.status.variant === "Active" ? 'bg-blue-900/50 text-blue-400' : 
+                                'bg-red-900/50 text-red-400'}`
                             }>
-                              {i % 3 === 0 ? <FileText className="h-4 w-4" /> : 
-                                i % 3 === 1 ? <UserCheck className="h-4 w-4" /> : 
-                                <Clock className="h-4 w-4" />}
+                              {proposal.status.variant === "Active" ? <FileText className="h-4 w-4" /> : 
+                                <Ban className="h-4 w-4" />}
                             </div>
                             <div className="ml-3 flex-1">
                               <p className="text-sm font-medium text-white">
-                                {i % 3 === 0 ? 'New proposal created' : 
-                                  i % 3 === 1 ? 'User voted on proposal' : 
-                                  'Proposal status changed'}
+                                {proposal.title.length > 30 ? proposal.title.substring(0, 30) + '...' : proposal.title}
                               </p>
                               <p className="text-xs text-white/60">
-                                {i % 3 === 0 ? `Proposal #${124 - i}` : 
-                                  i % 3 === 1 ? `User 0x${Math.random().toString(16).slice(2, 8)}` : 
-                                  `Status: ${Math.random() > 0.5 ? 'Active' : 'Delisted'}`}
+                                {proposal.status.variant === "Active" ? 
+                                  `${proposal.votedYesCount + proposal.votedNoCount} votes` : 
+                                  `Status: ${proposal.status.variant}`}
                               </p>
                             </div>
                             <div className="text-xs text-white/50">
-                              {Math.floor(i * 15 + 2)} min ago
+                              {isExpired(proposal.expiration) ? 'Expired' : formatTimeRemaining(proposal.expiration)}
                             </div>
                             <ChevronRight className="ml-2 h-4 w-4 text-white/30" />
                           </div>
@@ -423,7 +467,7 @@ export const AdminPage: FC = () => {
                     </CardContent>
                     <CardFooter className="pt-0">
                       <Button variant="link" size="sm" className="text-blue-400 hover:text-blue-300">
-                        View all activity
+                        View all proposals
                         <ChevronRight className="ml-1 h-4 w-4" />
                       </Button>
                     </CardFooter>
@@ -431,8 +475,8 @@ export const AdminPage: FC = () => {
 
                   <Card className="bg-black/30 border-white/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xl font-medium">Quick Stats</CardTitle>
-                      <CardDescription>Key performance indicators</CardDescription>
+                      <CardTitle className="text-xl font-medium">Vote Analytics</CardTitle>
+                      <CardDescription>Vote distribution statistics</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
@@ -444,7 +488,12 @@ export const AdminPage: FC = () => {
                             </span>
                           </div>
                           <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500/70" style={{ width: '68%' }} />
+                            <div 
+                              className="h-full bg-emerald-500/70" 
+                              style={{ 
+                                width: `${calculateVotePercentage(true)}%` 
+                              }} 
+                            />
                           </div>
                         </div>
                         
@@ -456,7 +505,12 @@ export const AdminPage: FC = () => {
                             </span>
                           </div>
                           <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-red-500/70" style={{ width: '32%' }} />
+                            <div 
+                              className="h-full bg-red-500/70" 
+                              style={{ 
+                                width: `${calculateVotePercentage(false)}%` 
+                              }} 
+                            />
                           </div>
                         </div>
                         
@@ -464,13 +518,13 @@ export const AdminPage: FC = () => {
                           <div className="flex justify-between text-sm">
                             <span className="text-white/60">Active rate</span>
                             <span className="text-white">
-                              {(analyticsData.activeProposals / analyticsData.totalProposals * 100).toFixed(1)}%
+                              {(analyticsData.activeProposals / (analyticsData.totalProposals || 1) * 100).toFixed(1)}%
                             </span>
                           </div>
                           <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-blue-500/70" 
-                              style={{ width: `${(analyticsData.activeProposals / analyticsData.totalProposals * 100)}%` }} 
+                              style={{ width: `${(analyticsData.activeProposals / (analyticsData.totalProposals || 1) * 100)}%` }} 
                             />
                           </div>
                         </div>
@@ -481,12 +535,16 @@ export const AdminPage: FC = () => {
                           <div className="p-2 rounded-lg bg-white/5">
                             <p className="text-white/60 text-xs">Avg. votes per proposal</p>
                             <p className="text-xl font-semibold text-white">
-                              {Math.round(analyticsData.totalVotes / analyticsData.totalProposals)}
+                              {analyticsData.totalProposals > 0 
+                                ? Math.round(analyticsData.totalVotes / analyticsData.totalProposals) 
+                                : 0}
                             </p>
                           </div>
                           <div className="p-2 rounded-lg bg-white/5">
-                            <p className="text-white/60 text-xs">Pass rate</p>
-                            <p className="text-xl font-semibold text-white">73.4%</p>
+                            <p className="text-white/60 text-xs">Yes vote rate</p>
+                            <p className="text-xl font-semibold text-white">
+                              {calculateVotePercentage(true).toFixed(1)}%
+                            </p>
                           </div>
                         </div>
                       </div>
