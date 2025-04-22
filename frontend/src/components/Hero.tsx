@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { ArrowDown} from "lucide-react";
 import { useNavigate } from "react-router-dom"; 
+import { ConnectButton } from "@mysten/dapp-kit";
+import { cn } from "../lib/utils";
 
 // Animation floating node component
 const Node = ({ delay = 0, x = 0, y = 0, size = 20 }) => (
@@ -62,6 +64,21 @@ const connections = [
   { start: 0, end: 5, delay: 2.7 },
 ];
 
+// Custom styled version of the ConnectButton
+const StyledConnectButton = () => {
+  return (
+    <div className="connect-wallet-container">
+      <ConnectButton 
+        className={cn(
+          "text-command hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3",
+          "bg-gradient-sui text-white border-none font-mono",
+          "min-h-[48px] flex items-center justify-center w-full"
+        )} 
+      />
+    </div>
+  );
+};
+
 const Hero = () => {
   const navigate = useNavigate();
 
@@ -98,9 +115,7 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <button className="text-command hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3" onClick={() => navigate("/wallet")}>
-              <span>CONNECT_WALLET</span>
-            </button>
+            <StyledConnectButton />
             
             <button className="text-command bg-transparent border border-white hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3">
               <span>LEARN_MORE</span>

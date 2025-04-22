@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { NavLink, useNavigate } from "react-router-dom"; 
-import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu, X } from "lucide-react";
+import { Home, FileText, ShieldCheck, BarChart2, Menu, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useAdminCap } from "../hooks/useAdminCap";
 
@@ -32,7 +32,6 @@ const Navbar = () => {
   const navLinks = [
     { to: "/", icon: Home, label: "Home" },
     { to: "/proposal", icon: FileText, label: "Proposals" },
-    { to: "/wallet", icon: Wallet, label: "Wallet" },
     { to: "/statistics", icon: BarChart2, label: "Statistics" },
     // Admin link will be conditionally added below
   ];
