@@ -3,11 +3,13 @@ import { motion } from "framer-motion";
 import { NavLink, useNavigate } from "react-router-dom"; 
 import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
+import { useAdminCap } from "../hooks/useAdminCap";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const { hasAdminCap } = useAdminCap();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -32,8 +34,13 @@ const Navbar = () => {
     { to: "/proposal", icon: FileText, label: "Proposals" },
     { to: "/wallet", icon: Wallet, label: "Wallet" },
     { to: "/statistics", icon: BarChart2, label: "Statistics" },
-    { to: "/admin", icon: ShieldCheck, label: "Admin" }
+    // Admin link will be conditionally added below
   ];
+
+  // Only add admin link if user has admin privileges
+  if (hasAdminCap) {
+    navLinks.push({ to: "/admin", icon: ShieldCheck, label: "Admin" });
+  }
 
   const renderNavLink = (link: { to: string, icon: any, label: string }) => (
     <NavLink 

@@ -13,6 +13,7 @@ import ProposalView from "./views/ProposalView";
 import WalletView from "./views/WalletView";
 import AdminDashboard from "./views/AdminDashboard";
 import StatisticsView from "./views/StatisticsView";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +32,11 @@ const router = createBrowserRouter([
   },
   {
     path: "/admin",
-    element: <AdminDashboard />,
+    element: (
+      <ProtectedRoute>
+        <AdminDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/statistics",
