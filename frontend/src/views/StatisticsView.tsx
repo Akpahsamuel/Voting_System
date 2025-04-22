@@ -10,12 +10,13 @@ import { Pie, Bar, Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { NavLink } from "react-router-dom";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu } from "lucide-react";
+import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
-import React from 'react';
+import React, { FC } from 'react';
 import Navbar from '../components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Proposal } from '../types';
 
 // Register Chart.js components
 ChartJS.register(
@@ -31,22 +32,15 @@ ChartJS.register(
   TimeScale
 );
 
-interface ProposalData {
-  id: string;
-  title: string;
-  votedYesCount: number;
-  votedNoCount: number;
-  expiration: number;
-  status: string;
-  creator: string;
-}
+type SuiID = string;
 
-const StatisticsView: React.FC = () => {
+export const StatisticsView: FC = () => {
   const dashboardId = useNetworkVariable("dashboardId");
-  const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'voting' | 'user'>('overview');
   const account = useCurrentAccount();
   const { data: voteNftsRes } = useVoteNfts();
+  const [isLoading, setIsLoading] = useState(true);
   
   // Fetch dashboard data to get proposal IDs
   const { data: dashboardData } = useSuiClientQuery(
@@ -98,9 +92,10 @@ const StatisticsView: React.FC = () => {
           creator: fields.creator || "Unknown"
         };
       })
-      .filter(Boolean) as ProposalData[];
+      .filter(Boolean) as Proposal[];
     
     setProposals(parsedProposals);
+    setIsLoading(false);
   }, [proposalsData]);
   
   // Extract user vote NFTs
@@ -242,356 +237,54 @@ const StatisticsView: React.FC = () => {
   return (
     <div className="min-h-screen bg-black bg-grid-pattern text-white">
       <Navbar />
-      <div className="container mx-auto px-4 pt-24 pb-12">
-        <h1 className="text-3xl font-bold mb-6">Voting Statistics</h1>
+      <div className="container mx-auto px-4 py-8 pt-24">
+        <h1 className="text-3xl font-bold mb-8 text-white">Governance Statistics</h1>
         
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="bg-white/10 mb-6">
-            <TabsTrigger value="overview">Platform Overview</TabsTrigger>
-            <TabsTrigger value="voting">Voting Activity</TabsTrigger>
-            <TabsTrigger value="user">Your Activity</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="overview">
-            {/* Key Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-lg border border-white/20">
-                <h3 className="text-lg font-medium text-white/70 mb-2">Total Proposals</h3>
-                <p className="text-3xl font-bold text-white">{totalProposals}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-lg border border-white/20">
-                <h3 className="text-lg font-medium text-white/70 mb-2">Active Proposals</h3>
-                <p className="text-3xl font-bold text-blue-400">{activeAndNotExpired}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-lg border border-white/20">
-                <h3 className="text-lg font-medium text-white/70 mb-2">Total Votes</h3>
-                <p className="text-3xl font-bold text-white">{totalVotes}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-lg border border-white/20">
-                <h3 className="text-lg font-medium text-white/70 mb-2">Avg. Votes/Proposal</h3>
-                <p className="text-3xl font-bold text-green-400">
-                  {totalProposals > 0 ? (totalVotes / totalProposals).toFixed(1) : '0'}
-                </p>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Time-based Analytics Card */}
+            <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+              <h2 className="text-xl font-semibold mb-4">Time-based Analytics</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3">Proposal Creation Trend</h3>
+                  <div className="h-48 flex items-center justify-center text-white/60">
+                    [Interactive chart will appear here]
+                  </div>
+                </div>
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3">Expiration Distribution</h3>
+                  <div className="h-48 flex items-center justify-center text-white/60">
+                    [Pie chart will appear here]
+                  </div>
+                </div>
               </div>
             </div>
             
-            {/* Status Chart */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white">Proposal Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <Pie 
-                      data={statusDistributionData} 
-                      options={{ 
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            labels: {
-                              color: 'white'
-                            }
-                          }
-                        }
-                      }} 
-                    />
+            {/* Outcome Visualization Card */}
+            <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+              <h2 className="text-xl font-semibold mb-4">Outcome Visualization</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3">Vote Distribution</h3>
+                  <div className="h-48 flex items-center justify-center text-white/60">
+                    [Pie chart will appear here]
                   </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white">Vote Distribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <Pie 
-                      data={voteDistributionData} 
-                      options={{ 
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            labels: {
-                              color: 'white'
-                            }
-                          }
-                        }
-                      }} 
-                    />
+                </div>
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3">Victory Margin Analysis</h3>
+                  <div className="h-48 flex items-center justify-center text-white/60">
+                    [Bar chart will appear here]
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Timeline Chart */}
-            <Card className="bg-white/10 backdrop-blur-md border-white/20 mb-8">
-              <CardHeader>
-                <CardTitle className="text-white">Voting Activity Over Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <Line 
-                    data={timelineData} 
-                    options={{ 
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: { color: 'white' }
-                        },
-                        x: {
-                          ticks: { color: 'white' }
-                        }
-                      },
-                      plugins: {
-                        legend: {
-                          labels: {
-                            color: 'white'
-                          }
-                        }
-                      }
-                    }} 
-                  />
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="voting">
-            {/* Top Proposals */}
-            <Card className="bg-white/10 backdrop-blur-md border-white/20 mb-8">
-              <CardHeader>
-                <CardTitle className="text-white">Most Active Proposals</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <Bar 
-                    data={topProposalsData} 
-                    options={{ 
-                      maintainAspectRatio: false,
-                      indexAxis: 'y',
-                      scales: {
-                        x: {
-                          beginAtZero: true,
-                          ticks: { color: 'white' }
-                        },
-                        y: {
-                          ticks: { color: 'white' }
-                        }
-                      },
-                      plugins: {
-                        legend: {
-                          labels: {
-                            color: 'white'
-                          }
-                        }
-                      }
-                    }} 
-                  />
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Proposal List */}
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <CardTitle className="text-white">All Proposals</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-white/20">
-                    <thead>
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Title</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Yes Votes</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">No Votes</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Total</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Expiration</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {proposals.map((proposal) => (
-                        <tr key={proposal.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-white">{proposal.title}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              proposal.status === "Active" && proposal.expiration > now
-                                ? "bg-green-900/60 text-green-300"
-                                : proposal.status === "Delisted"
-                                  ? "bg-red-900/60 text-red-300"
-                                  : "bg-yellow-900/60 text-yellow-300"
-                            }`}>
-                              {proposal.status === "Active" && proposal.expiration > now
-                                ? "Active"
-                                : proposal.status === "Delisted"
-                                  ? "Delisted"
-                                  : "Expired"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                            {proposal.votedYesCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                            {proposal.votedNoCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                            {proposal.votedYesCount + proposal.votedNoCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                            {new Date(proposal.expiration).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="user">
-            {account ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                    <CardHeader>
-                      <CardTitle className="text-white text-lg">Your Participation</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-3xl font-bold text-blue-400 mb-4">{userVotedCount} / {totalProposals}</p>
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium text-white/70">Participation Rate</span>
-                          <span className="text-sm font-medium text-blue-400">{userParticipationRate.toFixed(1)}%</span>
-                        </div>
-                        <div className="w-full bg-white/20 rounded-full h-2.5">
-                          <div 
-                            className="bg-blue-500 h-2.5 rounded-full" 
-                            style={{ width: `${userParticipationRate}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                    <CardHeader>
-                      <CardTitle className="text-white text-lg">Your Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold text-green-400 mb-2">
-                        {userVotedCount > 0 ? (
-                          userVotedCount > totalProposals / 2 ? 'Active Voter' : 'Occasional Voter'
-                        ) : 'Not Participated'}
-                      </p>
-                      <p className="text-sm text-white/70">
-                        {userVotedCount > 0 ? (
-                          userVotedCount > totalProposals / 2 
-                            ? 'You are highly engaged with the platform!'
-                            : 'You have started participating in voting.'
-                        ) : 'You have not voted on any proposals yet.'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                    <CardHeader>
-                      <CardTitle className="text-white text-lg">Proposals to Vote</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-bold text-orange-400 mb-2">
-                        {totalProposals - userVotedCount}
-                      </p>
-                      <p className="text-sm text-white/70">
-                        {totalProposals - userVotedCount > 0 
-                          ? 'There are still proposals waiting for your vote!' 
-                          : 'You have voted on all available proposals!'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-                
-                {/* User's Voted Proposals */}
-                {userVotedCount > 0 ? (
-                  <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                    <CardHeader>
-                      <CardTitle className="text-white">Your Voted Proposals</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-white/20">
-                          <thead>
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Proposal</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Status</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">Yes Votes</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">No Votes</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/10">
-                            {userVotedProposalDetails.map((proposal) => (
-                              <tr key={proposal.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-white">{proposal.title}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                    proposal.status === "Active" && proposal.expiration > now 
-                                      ? "bg-green-900/60 text-green-300" 
-                                      : proposal.status === "Delisted" 
-                                        ? "bg-red-900/60 text-red-300" 
-                                        : "bg-yellow-900/60 text-yellow-300"
-                                  }`}>
-                                    {proposal.status === "Active" && proposal.expiration > now 
-                                      ? "Active" 
-                                      : proposal.status === "Delisted" 
-                                        ? "Delisted" 
-                                        : "Expired"}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                                  {proposal.votedYesCount}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                                  {proposal.votedNoCount}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="bg-white/10 backdrop-blur-md p-8 rounded-lg border border-white/20 text-center">
-                    <h3 className="text-xl font-medium text-white mb-4">No Activity Yet</h3>
-                    <p className="text-white/70">
-                      You haven't voted on any proposals yet. Check out the available proposals and make your voice heard!
-                    </p>
-                    <button 
-                      onClick={() => window.location.href = '/proposal'}
-                      className="mt-6 bg-gradient-sui text-white px-6 py-2 rounded-md transition-all hover:opacity-90"
-                    >
-                      View Proposals
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-white/10 backdrop-blur-md p-8 rounded-lg border border-white/20 text-center">
-                <h3 className="text-xl font-medium text-white mb-4">Connect Your Wallet</h3>
-                <p className="text-white/70 mb-6">
-                  Please connect your wallet to view your personal voting statistics.
-                </p>
-                <ConnectButton />
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
