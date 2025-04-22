@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSignAndExecuteTransaction, useSuiClientQuery } from "@mysten/dapp-kit";
+import { useSignAndExecuteTransaction, useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { useAdminCap } from "../../hooks/useAdminCap";
@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UserPlus, ShieldCheck, ExternalLink, Copy } from "lucide-react";
+import { Loader2, UserPlus, ShieldCheck, ExternalLink, Copy, RefreshCw } from "lucide-react";
 import { SuiObjectData } from "@mysten/sui/client";
 
 // Import shadcn components
@@ -31,11 +31,13 @@ const GrantAdmin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [adminAddresses, setAdminAddresses] = useState<string[]>([]);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId");
   const { adminCapId } = useAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const suiClient = useSuiClient();
   
   // Fetch dashboard data to get admin addresses
   const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery(
@@ -48,47 +50,70 @@ const GrantAdmin = () => {
     }
   );
 
-  // Extract admin addresses from dashboard data
-  useEffect(() => {
+  // Fetch admin addresses directly using the contract view function
+  const fetchAdminAddresses = async () => {
+    setIsLoadingAdmins(true);
+    setFetchError(null);
+    
+    try {
+      // For now, just rely on the dashboard data
+      parseAddressesFromDashboard();
+    } catch (error) {
+      console.error("Error fetching admin addresses:", error);
+      setFetchError("Failed to fetch administrators. Please try refreshing.");
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  };
+
+  // Parse addresses from dashboard data
+  const parseAddressesFromDashboard = () => {
     if (!dashboardData?.data) return;
     
     try {
       const dashboardObj = dashboardData.data as SuiObjectData;
       if (dashboardObj.content?.dataType !== "moveObject") return;
       
+      console.log("Dashboard data for admin parsing:", dashboardObj.content.fields);
+      
       const fields = dashboardObj.content.fields as any;
       
-      // Dashboard.admin_addresses is a VecSet<address>
-      // Try to extract it in different possible formats
-      let addresses: string[] = [];
+      // Store the raw admin_addresses data for debugging
+      const rawAdminData = fields?.admin_addresses;
+      console.log("Raw admin_addresses field:", rawAdminData);
       
-      if (fields?.admin_addresses) {
-        const adminSet = fields.admin_addresses;
-        
-        // Handle different VecSet serialization formats
-        if (Array.isArray(adminSet)) {
-          // Direct array format
-          addresses = adminSet;
-        } else if (adminSet.contents && Array.isArray(adminSet.contents)) {
-          // VecSet with contents field
-          addresses = adminSet.contents;
-        } else if (typeof adminSet === 'object') {
-          // Try to extract keys from object representation
-          addresses = Object.values(adminSet).filter(val => 
-            typeof val === 'string' && val.startsWith('0x')
-          ) as string[];
+      // As a fallback, extract any address-like strings from the data
+      const adminDataString = JSON.stringify(rawAdminData);
+      const addressMatches = adminDataString.match(/0x[a-fA-F0-9]{40,}/g);
+      
+      if (addressMatches && addressMatches.length > 0) {
+        console.log("Found addresses via regex:", addressMatches);
+        setAdminAddresses(addressMatches);
+      } else {
+        setAdminAddresses([]);
+        if (typeof rawAdminData === 'object') {
+          setFetchError(`No admin addresses found. Raw data available in console (type: ${typeof rawAdminData}).`);
+        } else if (Array.isArray(rawAdminData)) {
+          setFetchError(`No admin addresses found in array of ${rawAdminData.length} items.`);
+        } else if (!rawAdminData) {
+          setFetchError("No admin_addresses field found in dashboard data");
+        } else {
+          setFetchError(`No admin addresses found in data of type ${typeof rawAdminData}`);
         }
       }
-      
-      console.log("Extracted admin addresses:", addresses);
-      setAdminAddresses(addresses);
     } catch (error) {
-      console.error("Error parsing admin addresses:", error);
-    } finally {
-      setIsLoadingAdmins(false);
+      console.error("Error parsing admin addresses from dashboard:", error);
+      setFetchError("Error parsing administrator data");
     }
-  }, [dashboardData]);
+  };
   
+  // Initialize by fetching admin addresses
+  useEffect(() => {
+    if (dashboardId) {
+      fetchAdminAddresses();
+    }
+  }, [dashboardId, dashboardData]);
+
   // Initialize form with react-hook-form and zod validation
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -246,10 +271,26 @@ const GrantAdmin = () => {
 
       <Card className="bg-black/30 border-white/20">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-emerald-400" />
-            Current Administrators
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              Current Administrators
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-blue-400 border-blue-500/30 hover:bg-blue-900/30"
+              onClick={fetchAdminAddresses}
+              disabled={isLoadingAdmins}
+            >
+              {isLoadingAdmins ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              Refresh
+            </Button>
+          </div>
           <CardDescription>
             Addresses with administrator privileges on the dashboard
           </CardDescription>
@@ -261,11 +302,11 @@ const GrantAdmin = () => {
               <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
               <span className="ml-2 text-white/70">Loading administrators...</span>
             </div>
-          ) : dashboardData?.error ? (
+          ) : fetchError ? (
             <Alert className="bg-red-900/20 border-red-800/30 text-red-300">
-              <AlertTitle>Error loading administrators</AlertTitle>
+              <AlertTitle>Error</AlertTitle>
               <AlertDescription>
-                {dashboardData.error?.toString() || "Failed to load administrator data"}
+                {fetchError}
               </AlertDescription>
             </Alert>
           ) : adminAddresses.length === 0 ? (
