@@ -67,14 +67,21 @@ const connections = [
 // Custom styled version of the ConnectButton
 const StyledConnectButton = () => {
   return (
-    <div className="connect-wallet-container">
+    <div className="connect-wallet-container relative group overflow-hidden">
       <ConnectButton 
         className={cn(
-          "text-command hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3",
-          "bg-gradient-sui text-white border-none font-mono",
-          "min-h-[48px] flex items-center justify-center w-full"
+          "text-command hover:bg-white hover:text-black transition-all duration-300 px-6 py-3",
+          "bg-gradient-sui text-white border-none font-mono relative z-10",
+          "min-h-[48px] flex items-center justify-center w-full",
+          "hover:shadow-[0_0_15px_rgba(80,100,255,0.5)] hover:scale-[1.02]"
         )} 
       />
+      
+      {/* Glow effect on hover */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/10 blur-xl"></div>
+      
+      {/* Pulse animation on hover */}
+      <div className="absolute -inset-0.5 rounded bg-gradient-to-r from-blue-500 to-purple-500 opacity-0 group-hover:opacity-30 group-hover:animate-pulse transition-opacity duration-300 blur"></div>
     </div>
   );
 };
@@ -117,8 +124,14 @@ const Hero = () => {
           >
             <StyledConnectButton />
             
-            <button className="text-command bg-transparent border border-white hover:bg-white hover:text-black transition-colors duration-300 px-6 py-3">
-              <span>LEARN_MORE</span>
+            <button className="text-command bg-transparent border border-white/30 hover:border-white hover:bg-white/10 hover:text-white transition-all duration-300 px-6 py-3 relative group overflow-hidden hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:scale-[1.02]">
+              <span className="relative z-10">LEARN_MORE</span>
+              
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-300 bg-gradient-radial from-white/20 to-transparent"></div>
+              
+              {/* Animated border */}
+              <div className="absolute -inset-px rounded bg-gradient-to-r from-blue-500/40 to-purple-500/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
           </motion.div>
         </div>
