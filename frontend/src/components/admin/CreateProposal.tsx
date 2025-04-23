@@ -3,12 +3,13 @@ import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { useAdminCap } from "../../hooks/useAdminCap";
+import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Shield } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 // Import shadcn components
@@ -19,6 +20,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
 import { Calendar } from "../../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
 
 // Form schema validation
 const formSchema = z.object({
@@ -41,7 +44,8 @@ const CreateProposal = () => {
   
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId");
-  const { adminCapId } = useAdminCap();
+  const { adminCapId, hasAdminCap } = useAdminCap();
+  const { superAdminCapId, hasSuperAdminCap } = useSuperAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   
   // Initialize form with react-hook-form and zod validation
@@ -54,8 +58,9 @@ const CreateProposal = () => {
   });
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!adminCapId) {
-      toast.error("Admin capability not found");
+    // Check if user has either AdminCap or SuperAdminCap
+    if (!hasAdminCap && !hasSuperAdminCap) {
+      toast.error("You need admin or super admin capability to create proposals");
       return;
     }
     
@@ -67,25 +72,51 @@ const CreateProposal = () => {
       
       // Create a new proposal transaction
       const tx = new Transaction();
-      const proposalId = tx.moveCall({
-        target: `${packageId}::proposal::create`,
-        arguments: [
-          tx.object(adminCapId),
-          tx.pure.string(values.title),
-          tx.pure.string(values.description),
-          tx.pure.u64(expirationMs)
-        ],
-      });
+      let proposalId;
       
-      // Register the proposal in the dashboard
-      tx.moveCall({
-        target: `${packageId}::dashboard::register_proposal`,
-        arguments: [
-          tx.object(dashboardId),
-          tx.object(adminCapId),
-          proposalId
-        ],
-      });
+      // Create proposal path - use AdminCap if available, otherwise use SuperAdminCap
+      if (hasAdminCap) {
+        proposalId = tx.moveCall({
+          target: `${packageId}::proposal::create`,
+          arguments: [
+            tx.object(adminCapId!),
+            tx.pure.string(values.title),
+            tx.pure.string(values.description),
+            tx.pure.u64(expirationMs)
+          ],
+        });
+        
+        // Register proposal with AdminCap
+        tx.moveCall({
+          target: `${packageId}::dashboard::register_proposal`,
+          arguments: [
+            tx.object(dashboardId),
+            tx.object(adminCapId!),
+            proposalId
+          ],
+        });
+      } else if (hasSuperAdminCap) {
+        // Use create_super for SuperAdminCap
+        proposalId = tx.moveCall({
+          target: `${packageId}::proposal::create_super`,
+          arguments: [
+            tx.object(superAdminCapId!),
+            tx.pure.string(values.title),
+            tx.pure.string(values.description),
+            tx.pure.u64(expirationMs)
+          ],
+        });
+        
+        // Register proposal with SuperAdminCap
+        tx.moveCall({
+          target: `${packageId}::dashboard::register_proposal_super`,
+          arguments: [
+            tx.object(dashboardId),
+            tx.object(superAdminCapId!),
+            proposalId
+          ],
+        });
+      }
       
       await signAndExecute({
         transaction: tx.serialize()
@@ -106,11 +137,37 @@ const CreateProposal = () => {
     }
   };
   
+  // Check if we are in a valid state to create proposals
+  const canCreateProposal = hasAdminCap || hasSuperAdminCap;
+
+  // Cannot create proposals without at least one capability
+  if (!canCreateProposal) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <Alert className="bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:border-red-800 dark:text-red-300">
+          <AlertDescription>
+            You need admin or super admin capability to create proposals. Contact the system administrator to grant you access.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+  
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <Card className="border shadow-md bg-card">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold tracking-tight">Create New Proposal</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold tracking-tight">Create New Proposal</CardTitle>
+            <div>
+              {hasAdminCap && (
+                <Badge className="bg-blue-600">Using AdminCap</Badge>
+              )}
+              {hasSuperAdminCap && (
+                <Badge className="ml-2 bg-purple-600">SuperAdmin</Badge>
+              )}
+            </div>
+          </div>
           <CardDescription>
             Fill out the form below to create a new governance proposal
           </CardDescription>

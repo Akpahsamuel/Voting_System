@@ -1,24 +1,30 @@
 import { FC, useState, useEffect } from 'react';
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useAdminCap } from "../hooks/useAdminCap";
+import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import ProposalManagement from "../components/admin/ProposalManagement";
 import GrantAdmin from "../components/admin/GrantAdmin";
+import SuperAdminManagement from "../components/admin/SuperAdminManagement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Proposal } from "../types";
 import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, UserPlus } from 'lucide-react';
+import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, UserPlus, ShieldCheck, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from '../components/ui/badge';
 import { useNetworkVariable } from "../config/networkConfig";
 import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
+import { ConnectButton } from '@mysten/dapp-kit';
 
 // Define SuiID type
 type SuiID = string;
 
 export const AdminPage: FC = () => {
+  const account = useCurrentAccount();
   const { hasAdminCap, adminCapId, isLoading: isLoadingAdminCap } = useAdminCap();
+  const { hasSuperAdminCap, superAdminCapId, isLoading: isLoadingSuperAdminCap } = useSuperAdminCap();
   const dashboardId = useNetworkVariable("dashboardId");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -169,7 +175,31 @@ export const AdminPage: FC = () => {
     }
   };
 
-  if (isLoadingAdminCap) {
+  // Check if wallet is connected
+  if (!account) {
+    return (
+      <div className="container mx-auto px-4 py-16">
+        <Card className="bg-blue-900/30 border-blue-800/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-300">
+              <Wallet />
+              Connect Your Wallet
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-white/70 mb-4">
+              You need to connect your wallet to access the admin dashboard. Please connect your wallet that has an admin capability.
+            </p>
+            <div className="flex justify-center">
+              <ConnectButton />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoadingAdminCap || isLoadingSuperAdminCap) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center">
@@ -180,7 +210,7 @@ export const AdminPage: FC = () => {
     );
   }
 
-  if (!hasAdminCap) {
+  if (!hasAdminCap && !hasSuperAdminCap) {
     return (
       <div className="container mx-auto px-4 py-16">
         <Card className="bg-red-900/30 border-red-800/50">
@@ -210,9 +240,16 @@ export const AdminPage: FC = () => {
           </div>
           
           <div className="mt-4 md:mt-0 flex items-center space-x-4">
-            <Badge variant="outline" className="text-blue-300 border-blue-500/50 bg-blue-900/30 px-3 py-1">
-              Admin ID: {adminCapId?.substring(0, 8)}...
-            </Badge>
+            {adminCapId && (
+              <Badge variant="outline" className="text-blue-300 border-blue-500/50 bg-blue-900/30 px-3 py-1">
+                Admin ID: {adminCapId?.substring(0, 8)}...
+              </Badge>
+            )}
+            {superAdminCapId && (
+              <Badge variant="outline" className="text-purple-300 border-purple-500/50 bg-purple-900/30 px-3 py-1">
+                SuperAdmin ID: {superAdminCapId?.substring(0, 8)}...
+              </Badge>
+            )}
             <Button variant="outline" className="border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/30">
               <Activity className="mr-2 h-4 w-4" />
               System Status
@@ -248,22 +285,16 @@ export const AdminPage: FC = () => {
               <UserPlus className="mr-2 h-4 w-4" />
               Grant Admin
             </Button>
-            <Button 
-              variant={activeTab === "analytics" ? "default" : "ghost"}
-              className={activeTab === "analytics" ? "bg-blue-600" : "hover:bg-blue-900/30"}
-              onClick={() => setActiveTab("analytics")}
-            >
-              <Activity className="mr-2 h-4 w-4" />
-              Analytics
-            </Button>
-            <Button 
-              variant={activeTab === "settings" ? "default" : "ghost"}
-              className={activeTab === "settings" ? "bg-blue-600" : "hover:bg-blue-900/30"}
-              onClick={() => setActiveTab("settings")}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Button>
+            {hasSuperAdminCap && (
+              <Button 
+                variant={activeTab === "super_admin" ? "default" : "ghost"}
+                className={activeTab === "super_admin" ? "bg-purple-600" : "hover:bg-purple-900/30"}
+                onClick={() => setActiveTab("super_admin")}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                SuperAdmin
+              </Button>
+            )}
           </div>
         </div>
 
@@ -564,90 +595,36 @@ export const AdminPage: FC = () => {
             )}
 
             {activeTab === "proposals" && (
-              <ProposalManagement />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ProposalManagement adminCapId={adminCapId || superAdminCapId || ""} />
+              </motion.div>
             )}
 
             {activeTab === "grant_admin" && (
-              <GrantAdmin />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <GrantAdmin />
+              </motion.div>
             )}
 
-            {activeTab === "analytics" && (
-              <div className="space-y-6">
-                {/* Placeholder for the actual implementation of the StatisticsPanel component */}
-              </div>
-            )}
-
-            {activeTab === "settings" && (
-              <Card className="bg-black/30 border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-xl font-medium flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    Admin Settings
-                  </CardTitle>
-                  <CardDescription>Configure the governance protocol</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Voting Duration (days)</label>
-                        <input 
-                          type="number" 
-                          className="w-full bg-black/30 border border-white/20 rounded-md px-3 py-2 text-white"
-                          placeholder="7"
-                        />
-                        <p className="text-xs text-white/50">Default time a proposal is open for voting</p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Minimum Yes Votes Required</label>
-                        <input 
-                          type="number" 
-                          className="w-full bg-black/30 border border-white/20 rounded-md px-3 py-2 text-white"
-                          placeholder="100"
-                        />
-                        <p className="text-xs text-white/50">Minimum votes required for a proposal to pass</p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Execution Delay (hours)</label>
-                        <input 
-                          type="number" 
-                          className="w-full bg-black/30 border border-white/20 rounded-md px-3 py-2 text-white"
-                          placeholder="24"
-                        />
-                        <p className="text-xs text-white/50">Delay between approval and execution</p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Grace Period (hours)</label>
-                        <input 
-                          type="number" 
-                          className="w-full bg-black/30 border border-white/20 rounded-md px-3 py-2 text-white"
-                          placeholder="12"
-                        />
-                        <p className="text-xs text-white/50">Additional time after voting ends</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-white">Emergency Mode</label>
-                        <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-white/10 transition-colors focus:outline-none">
-                          <span className="inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-white/50">Enable emergency powers for admin</p>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button variant="ghost">Reset Defaults</Button>
-                  <Button className="bg-blue-600 hover:bg-blue-700">Save Settings</Button>
-                </CardFooter>
-              </Card>
+            {activeTab === "super_admin" && hasSuperAdminCap && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <SuperAdminManagement superAdminCapId={superAdminCapId || ""} onRefresh={() => {}} />
+              </motion.div>
             )}
           </motion.div>
         </AnimatePresence>

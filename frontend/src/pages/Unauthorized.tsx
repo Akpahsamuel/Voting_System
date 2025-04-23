@@ -17,7 +17,7 @@ export const Unauthorized: FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-white/70">
-            You don't have permission to access this page. This area is restricted to administrators only.
+            You don't have permission to access this page. This area is restricted to users with either AdminCap or SuperAdminCap.
           </p>
           
           <div className="rounded-md bg-black/40 p-4 border border-red-900/50">
@@ -26,7 +26,7 @@ export const Unauthorized: FC = () => {
             </p>
             <ol className="list-decimal list-inside space-y-2 text-sm text-white/60">
               <li>Make sure your wallet is connected</li>
-              <li>Verify you have an admin capability in your wallet</li>
+              <li>Verify you have an AdminCap or SuperAdminCap in your wallet</li>
               <li>Contact the system administrator if issues persist</li>
             </ol>
           </div>

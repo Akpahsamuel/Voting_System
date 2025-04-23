@@ -64,10 +64,15 @@ interface ProposalListItem {
   status: string;
 }
 
-const ProposalManagement = () => {
+interface ProposalManagementProps {
+  adminCapId?: string;
+}
+
+const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: providedAdminCapId }) => {
   const dashboardId = useNetworkVariable("dashboardId");
   const packageId = useNetworkVariable("packageId");
-  const { adminCapId } = useAdminCap();
+  const { adminCapId: hookAdminCapId } = useAdminCap();
+  const adminCapId = providedAdminCapId || hookAdminCapId;
   const [proposals, setProposals] = useState<ProposalListItem[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -153,8 +158,15 @@ const ProposalManagement = () => {
 
     try {
       const tx = new Transaction();
+      
+      // Determine if this is a SuperAdminCap by checking the cap's type
+      const isSuperAdmin = adminCapId.toLowerCase().includes("superadmincap");
+      
+      // Call the appropriate function based on the cap type
       tx.moveCall({
-        target: `${packageId}::proposal::set_delisted_status`,
+        target: isSuperAdmin 
+          ? `${packageId}::proposal::set_delisted_status_super`
+          : `${packageId}::proposal::set_delisted_status`,
         arguments: [tx.object(proposalId), tx.object(adminCapId)],
       });
 
@@ -187,8 +199,15 @@ const ProposalManagement = () => {
 
     try {
       const tx = new Transaction();
+      
+      // Determine if this is a SuperAdminCap by checking the cap's type
+      const isSuperAdmin = adminCapId.toLowerCase().includes("superadmincap");
+      
+      // Call the appropriate function based on the cap type
       tx.moveCall({
-        target: `${packageId}::proposal::set_active_status`,
+        target: isSuperAdmin 
+          ? `${packageId}::proposal::set_active_status_super`
+          : `${packageId}::proposal::set_active_status`,
         arguments: [tx.object(proposalId), tx.object(adminCapId)],
       });
 
@@ -221,8 +240,15 @@ const ProposalManagement = () => {
 
     try {
       const tx = new Transaction();
+      
+      // Determine if this is a SuperAdminCap by checking the cap's type
+      const isSuperAdmin = adminCapId.toLowerCase().includes("superadmincap");
+      
+      // Call the appropriate function based on the cap type
       tx.moveCall({
-        target: `${packageId}::proposal::remove`,
+        target: isSuperAdmin 
+          ? `${packageId}::proposal::remove_super`
+          : `${packageId}::proposal::remove`,
         arguments: [tx.object(proposalId), tx.object(adminCapId)],
       });
 

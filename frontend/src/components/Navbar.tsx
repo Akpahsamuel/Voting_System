@@ -4,6 +4,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { Home, FileText, ShieldCheck, BarChart2, Menu, X } from "lucide-react";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { useAdminCap } from "../hooks/useAdminCap";
+import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import { cn } from "../lib/utils";
 
 const Navbar = () => {
@@ -11,6 +12,8 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { hasAdminCap } = useAdminCap();
+  const { hasSuperAdminCap } = useSuperAdminCap();
+  const hasAdminAccess = hasAdminCap || hasSuperAdminCap;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -37,8 +40,8 @@ const Navbar = () => {
     // Admin link will be conditionally added below
   ];
 
-  // Only add admin link if user has admin privileges
-  if (hasAdminCap) {
+  // Show admin link if user has either AdminCap OR SuperAdminCap
+  if (hasAdminAccess) {
     navLinks.push({ to: "/admin", icon: ShieldCheck, label: "Admin" });
   }
 

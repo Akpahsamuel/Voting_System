@@ -6,6 +6,7 @@ use sui::url::{Url, new_unsafe_from_bytes};
 use sui::clock::{Clock};
 use sui::event;
 use voting_system::dashboard::AdminCap;
+use voting_system::dashboard::SuperAdminCap;
 
 const EDuplicateVote: u64 = 0;
 const EProposalDelisted: u64 = 1;
@@ -139,37 +140,74 @@ public fun create(
     id
 }
 
-public fun remove(self: Proposal, _admin_cap: &AdminCap) {
-    let Proposal {
-        id,
-        title: _,
-        description: _,
-        voted_yes_count: _,
-        voted_no_count: _,
-        expiration: _,
-        status: _,
-        voters,
-        creator: _,
-    } = self;
+/// Create a new proposal using SuperAdminCap
+public fun create_super(
+    _super_admin_cap: &SuperAdminCap,
+    title: String,
+    description: String,
+    expiration: u64,
+    ctx: &mut TxContext
+): ID {
+    let proposal = Proposal {
+        id: object::new(ctx),
+        title,
+        description,
+        voted_yes_count: 0,
+        voted_no_count: 0,
+        expiration,
+        creator: ctx.sender(),
+        status: ProposalStatus::Active,
+        voters: table::new(ctx),
+    };
 
+    let id = proposal.id.to_inner();
+    transfer::share_object(proposal);
+
+    id
+}
+
+public fun remove(self: Proposal, _admin_cap: &AdminCap) {
+    let Proposal { id, title: _, description: _, voted_yes_count: _, voted_no_count: _, expiration: _, status: _, creator: _, voters } = self;
     table::drop(voters);
-    object::delete(id)
+    object::delete(id);
+}
+
+public fun remove_super(self: Proposal, _super_admin_cap: &SuperAdminCap) {
+    let Proposal { id, title: _, description: _, voted_yes_count: _, voted_no_count: _, expiration: _, status: _, creator: _, voters } = self;
+    table::drop(voters);
+    object::delete(id);
 }
 
 public fun set_active_status(self: &mut Proposal, admin_cap: &AdminCap) {
     self.change_status(admin_cap,  ProposalStatus::Active);
 }
 
+public fun set_active_status_super(self: &mut Proposal, super_admin_cap: &SuperAdminCap) {
+    self.change_status_super(super_admin_cap,  ProposalStatus::Active);
+}
+
 public fun set_delisted_status(self: &mut Proposal, admin_cap: &AdminCap) {
     self.change_status(admin_cap,  ProposalStatus::Delisted);
+}
+
+public fun set_delisted_status_super(self: &mut Proposal, super_admin_cap: &SuperAdminCap) {
+    self.change_status_super(super_admin_cap,  ProposalStatus::Delisted);
 }
 
 fun change_status(
     self: &mut Proposal,
     _admin_cap: &AdminCap,
-    status: ProposalStatus
+    new_status: ProposalStatus
 ) {
-    self.status = status;
+    self.status = new_status;
+}
+
+fun change_status_super(
+    self: &mut Proposal,
+    _super_admin_cap: &SuperAdminCap,
+    new_status: ProposalStatus
+) {
+    self.status = new_status;
 }
 
 fun issue_vote_proof(proposal: &Proposal, vote_yes: bool, ctx: &mut TxContext) {

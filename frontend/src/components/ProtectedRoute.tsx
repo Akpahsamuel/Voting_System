@@ -1,6 +1,7 @@
 import { FC, ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAdminCap } from '../hooks/useAdminCap';
+import { useSuperAdminCap } from '../hooks/useSuperAdminCap';
 import { Activity } from 'lucide-react';
 import Unauthorized from '../pages/Unauthorized';
 
@@ -13,8 +14,11 @@ export const ProtectedRoute: FC<ProtectedRouteProps> = ({
   children, 
   redirectTo = "/" 
 }) => {
-  const { hasAdminCap, isLoading } = useAdminCap();
+  const { hasAdminCap, isLoading: isLoadingAdmin } = useAdminCap();
+  const { hasSuperAdminCap, isLoading: isLoadingSuperAdmin } = useSuperAdminCap();
   const [showLoader, setShowLoader] = useState(true);
+  
+  const isLoading = isLoadingAdmin || isLoadingSuperAdmin;
   
   // Add a slight delay before showing the loading state to prevent flashes
   useEffect(() => {
@@ -38,11 +42,11 @@ export const ProtectedRoute: FC<ProtectedRouteProps> = ({
     );
   }
   
-  // Show unauthorized page if not admin
-  if (!hasAdminCap) {
+  // Show unauthorized page if not admin or superadmin
+  if (!hasAdminCap && !hasSuperAdminCap) {
     return <Unauthorized />;
   }
   
-  // If admin, render the protected content
+  // If admin or superadmin, render the protected content
   return <>{children}</>;
 }; 

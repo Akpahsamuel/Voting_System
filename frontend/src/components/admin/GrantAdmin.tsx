@@ -3,11 +3,12 @@ import { useSignAndExecuteTransaction, useSuiClientQuery, useSuiClient } from "@
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { useAdminCap } from "../../hooks/useAdminCap";
+import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UserPlus, ShieldCheck, ExternalLink, Copy, RefreshCw } from "lucide-react";
+import { Loader2, UserPlus, ShieldCheck, ExternalLink, Copy, RefreshCw, ChevronDown, AlertTriangle } from "lucide-react";
 import { SuiObjectData } from "@mysten/sui/client";
 
 // Import shadcn components
@@ -17,6 +18,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Separator } from "../ui/separator";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
+import { Badge } from "../../components/ui/badge";
 
 // Form schema validation
 const formSchema = z.object({
@@ -32,13 +35,115 @@ const GrantAdmin = () => {
   const [adminAddresses, setAdminAddresses] = useState<string[]>([]);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [currentNetwork, setCurrentNetwork] = useState<string>('mainnet');
+  const [explorerNetwork, setExplorerNetwork] = useState<string>('devnet');
+  // New state to control dropdown open/closed state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId");
   const { adminCapId } = useAdminCap();
+  const { hasSuperAdminCap, superAdminCapId } = useSuperAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const suiClient = useSuiClient();
   
+  // Check if user has SuperAdminCap - only SuperAdmins can grant admin access
+  if (!hasSuperAdminCap) {
+    return (
+      <Card className="bg-red-900/30 border-red-800/50">
+        <CardHeader className="space-y-1">
+          <CardTitle className="flex items-center gap-2 text-red-300">
+            <AlertTriangle className="h-6 w-6" />
+            Access Denied
+          </CardTitle>
+          <CardDescription className="text-white/70">
+            Only SuperAdmin users can grant admin access
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-white/70 mb-4">
+            You need to have a SuperAdminCap capability to grant admin access to other users.
+            Regular AdminCap holders cannot perform this action.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Detect the current network
+  useEffect(() => {
+    const detectNetwork = async () => {
+      try {
+        // Try to get network info from the Sui client
+        // First, try getting the system state
+        const systemState = await suiClient.getLatestSuiSystemState();
+        console.log("System state for network detection:", systemState);
+        
+        // Try to determine network from various system state properties
+        if (systemState) {
+          // Look for known chain identifiers or characteristic values
+          const stateData = JSON.stringify(systemState).toLowerCase();
+          
+          if (stateData.includes('testnet')) {
+            console.log("Detected testnet from system state");
+            setCurrentNetwork('testnet');
+            return;
+          } else if (stateData.includes('devnet')) {
+            console.log("Detected devnet from system state");
+            setCurrentNetwork('devnet');
+            return;
+          }
+        }
+        
+        // If we get here, try a different approach:
+        // Use window.location to check if we're on a known testnet/devnet domain
+        const hostname = window.location.hostname.toLowerCase();
+        const pathname = window.location.pathname.toLowerCase();
+        const search = window.location.search.toLowerCase();
+        
+        console.log("URL for network detection:", { hostname, pathname, search });
+        
+        // Check URL for network indicators
+        if (hostname.includes('testnet') || pathname.includes('testnet') || search.includes('testnet')) {
+          console.log("Detected testnet from URL");
+          setCurrentNetwork('testnet');
+        } else if (hostname.includes('devnet') || pathname.includes('devnet') || search.includes('devnet')) {
+          console.log("Detected devnet from URL");
+          setCurrentNetwork('devnet');
+        } else if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+          console.log("Detected local development environment");
+          // For local development, default to testnet for better explorer support
+          setCurrentNetwork('testnet');
+        } else {
+          console.log("No specific network detected, defaulting to mainnet");
+          setCurrentNetwork('mainnet');
+        }
+        
+      } catch (error) {
+        console.error("Error in network detection:", error);
+        // Default to checking location
+        if (window.location.hostname.includes('testnet')) {
+          setCurrentNetwork('testnet');
+        } else if (window.location.hostname.includes('devnet')) {
+          setCurrentNetwork('devnet');
+        } else if (window.location.hostname.includes('localhost')) {
+          // For local development, use testnet for better explorer support
+          setCurrentNetwork('testnet');
+        } else {
+          setCurrentNetwork('mainnet');
+        }
+      }
+    };
+    
+    detectNetwork();
+  }, [suiClient]);
+
+  // Helper function to determine which network to use for explorer links
+  const getExplorerNetwork = () => {
+    // Use the manually selected network
+    return explorerNetwork;
+  };
+
   // Fetch dashboard data to get admin addresses
   const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery(
     "getObject",
@@ -123,8 +228,8 @@ const GrantAdmin = () => {
   });
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!adminCapId) {
-      toast.error("Admin capability not found");
+    if (!superAdminCapId) {
+      toast.error("SuperAdmin capability not found");
       return;
     }
     
@@ -133,16 +238,16 @@ const GrantAdmin = () => {
       console.log("Starting grant admin transaction with:", {
         packageId,
         dashboardId,
-        adminCapId,
+        superAdminCapId,
         recipientAddress: values.address
       });
       
-      // Create a transaction to grant admin privileges
+      // Create a transaction to grant admin privileges using SuperAdminCap
       const tx = new Transaction();
       tx.moveCall({
-        target: `${packageId}::dashboard::grant_admin`,
+        target: `${packageId}::dashboard::grant_admin_super_admin`,
         arguments: [
-          tx.object(adminCapId),
+          tx.object(superAdminCapId),
           tx.object(dashboardId),
           tx.pure.address(values.address)
         ],
@@ -190,10 +295,76 @@ const GrantAdmin = () => {
     toast.success("Address copied to clipboard");
   };
 
-  const openInExplorer = (address: string) => {
-    const network = window.location.hostname.includes('testnet') ? 'testnet' : 'mainnet';
-    const url = `https://explorer.sui.io/address/${address}?network=${network}`;
-    window.open(url, '_blank');
+  const openInExplorer = (address: string, explorerIndex = 0) => {
+    // Get the current network for explorer links
+    const network = getExplorerNetwork();
+    
+    // Create URLs for multiple explorers based on network
+    let explorers = [];
+    
+    // Different URLs based on network
+    if (network === 'testnet') {
+      explorers = [
+        {
+          name: 'SuiScan',
+          url: `https://suiscan.xyz/testnet/account/${address}`
+        },
+        {
+          name: 'Sui Explorer',
+          url: `https://explorer.sui.io/address/${address}?network=testnet`
+        },
+        {
+          name: 'SuiVision',
+          url: `https://suivision.xyz/accounts/${address}?network=testnet`
+        }
+      ];
+    } else if (network === 'devnet') {
+      explorers = [
+        {
+          name: 'Sui Explorer',
+          url: `https://explorer.sui.io/address/${address}?network=devnet`
+        },
+        {
+          name: 'SuiVision',
+          url: `https://suivision.xyz/accounts/${address}?network=devnet`
+        }
+      ];
+    } else if (network === 'localnet') {
+      explorers = [
+        {
+          name: 'Sui Explorer',
+          url: `https://explorer.sui.io/address/${address}?network=localnet`
+        }
+      ];
+    } else {
+      // Default to mainnet
+      explorers = [
+        {
+          name: 'SuiScan',
+          url: `https://suiscan.xyz/mainnet/account/${address}`
+        },
+        {
+          name: 'Sui Explorer',
+          url: `https://explorer.sui.io/address/${address}?network=mainnet`
+        },
+        {
+          name: 'SuiVision',
+          url: `https://suivision.xyz/accounts/${address}?network=mainnet`
+        }
+      ];
+    }
+    
+    // Get the appropriate explorer
+    let explorer;
+    if (explorerIndex < explorers.length) {
+      explorer = explorers[explorerIndex];
+    } else {
+      explorer = explorers[0];
+    }
+    
+    console.log(`Opening explorer: ${explorer.name} at ${explorer.url} (Network: ${network})`);
+    
+    window.open(explorer.url, '_blank');
   };
   
   return (
@@ -202,7 +373,7 @@ const GrantAdmin = () => {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <UserPlus className="h-6 w-6 text-blue-400" />
-            Grant Admin Access
+            Grant Admin Access <Badge className="ml-2 bg-purple-600">SuperAdmin Only</Badge>
           </CardTitle>
           <CardDescription>
             Provide a Sui address to grant administrator privileges to another user
@@ -251,16 +422,16 @@ const GrantAdmin = () => {
                 </Button>
               </div>
               
-              {adminCapId ? (
-                <Alert className="mt-4 bg-blue-900/20 border-blue-800/30">
-                  <AlertDescription className="text-blue-300 text-sm">
-                    You are granting admin access using AdminCap: {truncateAddress(adminCapId)}
+              {superAdminCapId ? (
+                <Alert className="mt-4 bg-purple-900/20 border-purple-800/30">
+                  <AlertDescription className="text-purple-300 text-sm">
+                    You are granting admin access using SuperAdminCap: {truncateAddress(superAdminCapId)}
                   </AlertDescription>
                 </Alert>
               ) : (
                 <Alert className="mt-4 bg-amber-900/20 border-amber-800/30">
                   <AlertDescription className="text-amber-300 text-sm">
-                    AdminCap not found in your wallet. You may not have permission to grant admin access.
+                    SuperAdminCap not found in your wallet. You cannot grant admin access.
                   </AlertDescription>
                 </Alert>
               )}
@@ -276,20 +447,69 @@ const GrantAdmin = () => {
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
               Current Administrators
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-blue-400 border-blue-500/30 hover:bg-blue-900/30"
-              onClick={fetchAdminAddresses}
-              disabled={isLoadingAdmins}
-            >
-              {isLoadingAdmins ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-1" />
-              )}
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-300 border-blue-500/30 bg-blue-900/20 hover:bg-blue-900/30"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDropdownOpen(!dropdownOpen);
+                    }}
+                  >
+                    {explorerNetwork.toUpperCase()}
+                    <ChevronDown className="ml-1 h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
+                  <DropdownMenuLabel>Explorer Network</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-blue-900" />
+                  <DropdownMenuItem 
+                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'mainnet' ? 'bg-blue-800/50' : ''}`}
+                    onClick={() => {
+                      setExplorerNetwork('mainnet');
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    MAINNET
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'testnet' ? 'bg-blue-800/50' : ''}`}
+                    onClick={() => {
+                      setExplorerNetwork('testnet');
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    TESTNET
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'devnet' ? 'bg-blue-800/50' : ''}`}
+                    onClick={() => {
+                      setExplorerNetwork('devnet');
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    DEVNET
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-blue-400 border-blue-500/30 hover:bg-blue-900/30"
+                onClick={fetchAdminAddresses}
+                disabled={isLoadingAdmins}
+              >
+                {isLoadingAdmins ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Refresh
+              </Button>
+            </div>
           </div>
           <CardDescription>
             Addresses with administrator privileges on the dashboard
@@ -336,15 +556,40 @@ const GrantAdmin = () => {
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
-                      onClick={() => openInExplorer(address)}
-                      title="View in explorer"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
+                          title="View in explorer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
+                        <DropdownMenuLabel>View in Explorer</DropdownMenuLabel>
+                        <DropdownMenuSeparator className="bg-blue-900" />
+                        <DropdownMenuItem 
+                          className="hover:bg-blue-900/50 cursor-pointer"
+                          onClick={() => openInExplorer(address, 0)}
+                        >
+                          SuiScan
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="hover:bg-blue-900/50 cursor-pointer"
+                          onClick={() => openInExplorer(address, 1)}
+                        >
+                          Sui Explorer
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="hover:bg-blue-900/50 cursor-pointer"
+                          onClick={() => openInExplorer(address, 2)}
+                        >
+                          SuiVision
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
