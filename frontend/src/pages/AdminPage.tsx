@@ -5,6 +5,7 @@ import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import ProposalManagement from "../components/admin/ProposalManagement";
 import GrantAdmin from "../components/admin/GrantAdmin";
 import SuperAdminManagement from "../components/admin/SuperAdminManagement";
+import CreateProposal from "../components/admin/CreateProposal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -276,6 +277,14 @@ export const AdminPage: FC = () => {
             >
               <FileText className="mr-2 h-4 w-4" />
               Proposal Management
+            </Button>
+            <Button 
+              variant={activeTab === "create_proposal" ? "default" : "ghost"}
+              className={activeTab === "create_proposal" ? "bg-green-600" : "hover:bg-green-900/30"}
+              onClick={() => setActiveTab("create_proposal")}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Create Proposal
             </Button>
             <Button 
               variant={activeTab === "grant_admin" ? "default" : "ghost"}
@@ -602,6 +611,17 @@ export const AdminPage: FC = () => {
                 transition={{ duration: 0.2 }}
               >
                 <ProposalManagement adminCapId={adminCapId || superAdminCapId || ""} />
+              </motion.div>
+            )}
+
+            {activeTab === "create_proposal" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <CreateProposal />
               </motion.div>
             )}
 
