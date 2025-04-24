@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useSignAndExecuteTransaction, useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
@@ -160,19 +160,35 @@ const GrantAdmin = () => {
       
       const fields = dashboardObj.content.fields as any;
       
-      // Store the raw admin_addresses data for debugging
+      // Parse both admin and super admin addresses
       const rawAdminData = fields?.admin_addresses;
+      const rawSuperAdminData = fields?.super_admin_addresses;
+      
       console.log("Raw admin_addresses field:", rawAdminData);
+      console.log("Raw super_admin_addresses field:", rawSuperAdminData);
       
-      // As a fallback, extract any address-like strings from the data
-      const adminDataString = JSON.stringify(rawAdminData);
-      const addressMatches = adminDataString.match(/0x[a-fA-F0-9]{40,}/g);
+      // Helper function to extract addresses from data
+      const extractAddresses = (data: any): string[] => {
+        if (!data) return [];
+        
+        // Handle different possible formats
+        if (Array.isArray(data)) {
+          return data.filter(addr => typeof addr === 'string' && addr.startsWith('0x'));
+        }
+        
+        // Try to extract from JSON string if it's not an array
+        const dataString = JSON.stringify(data);
+        const addressMatches = dataString.match(/0x[a-fA-F0-9]{40,}/g);
+        return addressMatches || [];
+      };
       
-      if (addressMatches && addressMatches.length > 0) {
-        console.log("Found addresses via regex:", addressMatches);
-        setAdminAddresses(addressMatches);
-      } else {
-        setAdminAddresses([]);
+      // Extract admin addresses
+      const adminAddrs = extractAddresses(rawAdminData);
+      console.log("Extracted admin addresses:", adminAddrs);
+      setAdminAddresses(adminAddrs);
+      
+      // If no admin addresses found, set appropriate error
+      if (adminAddrs.length === 0) {
         if (typeof rawAdminData === 'object') {
           setFetchError(`No admin addresses found. Raw data available in console (type: ${typeof rawAdminData}).`);
         } else if (Array.isArray(rawAdminData)) {
@@ -182,9 +198,16 @@ const GrantAdmin = () => {
         } else {
           setFetchError(`No admin addresses found in data of type ${typeof rawAdminData}`);
         }
+      } else {
+        setFetchError(null);
       }
+      
+      // For super admin verification, extract super admin addresses
+      const superAdminAddrs = extractAddresses(rawSuperAdminData);
+      console.log("Extracted super admin addresses:", superAdminAddrs);
+      
     } catch (error) {
-      console.error("Error parsing admin addresses from dashboard:", error);
+      console.error("Error parsing addresses from dashboard:", error);
       setFetchError("Error parsing administrator data");
     }
   };
@@ -205,24 +228,20 @@ const GrantAdmin = () => {
   });
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!superAdminCapId) {
-      toast.error("SuperAdmin capability not found");
-      return;
-    }
-    
     try {
       setIsLoading(true);
-      console.log("Starting grant admin transaction with:", {
-        packageId,
-        dashboardId,
-        superAdminCapId,
-        recipientAddress: values.address
-      });
       
-      // Create a transaction to grant admin privileges using SuperAdminCap
+      if (!superAdminCapId) {
+        toast.error("No SuperAdminCap found in your wallet");
+        return;
+      }
+      
+      // Create transaction for granting admin capability
       const tx = new Transaction();
+      
+      // Call the grant_admin_super function
       tx.moveCall({
-        target: `${packageId}::dashboard::grant_admin_super_admin`,
+        target: `${packageId}::dashboard::grant_admin_super`,
         arguments: [
           tx.object(superAdminCapId),
           tx.object(dashboardId),
@@ -230,34 +249,26 @@ const GrantAdmin = () => {
         ],
       });
       
+      // Sign and execute the transaction
       await signAndExecute({
         transaction: tx.serialize()
       }, {
-        onSuccess: async (result) => {
+        onSuccess: (result) => {
           console.log("Grant admin transaction successful:", result);
           toast.success(`Admin capability granted to ${values.address}`);
           form.reset();
-          await refetchDashboard();
-          setIsLoading(false);
+          fetchAdminAddresses();
         },
         onError: (error) => {
           console.error("Grant admin transaction failed:", error);
-          let errorMessage = error.message;
-          
-          // Check for common contract errors
-          if (errorMessage.includes("EInvalidOtw")) {
-            errorMessage = "Invalid one-time witness error. Please contact the developer.";
-          } else if (errorMessage.includes("AdminCap")) {
-            errorMessage = "Admin capability error. You may not have permission to perform this action.";
-          }
-          
-          toast.error(`Error granting admin capability: ${errorMessage}`);
-          setIsLoading(false);
-        }
+          toast.error(`Failed to grant admin capability: ${error.message}`);
+        },
       });
-    } catch (error: any) {
-      console.error("Exception in grant admin:", error);
-      toast.error(`Error: ${error.message || error}`);
+      
+    } catch (error) {
+      console.error("Error in grant admin:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -346,6 +357,18 @@ const GrantAdmin = () => {
   
   return (
     <div className="space-y-8">
+      {/* Add information alert about the authorization system */}
+      <Alert className="bg-blue-900/30 border-blue-800/50">
+        <AlertTitle className="text-blue-300 flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" />
+          Authorization System
+        </AlertTitle>
+        <AlertDescription className="text-blue-200/80">
+          This dashboard now verifies that your admin/superadmin capability is in the authorized set before allowing actions. 
+          Even if you have a capability object, it must be registered in the dashboard's authorized list to perform operations.
+        </AlertDescription>
+      </Alert>
+      
       {!hasSuperAdminCap ? (
         <Card className="bg-red-900/30 border-red-800/50">
           <CardHeader className="space-y-1">
@@ -406,7 +429,7 @@ const GrantAdmin = () => {
                     <Button 
                       type="submit" 
                       className="w-full sm:w-auto ml-auto bg-blue-600 hover:bg-blue-700 text-white" 
-                      disabled={isLoading || !form.formState.isValid}
+                      disabled={isLoading || !form.formState.isValid || !superAdminCapId}
                     >
                       {isLoading ? (
                         <>
@@ -420,9 +443,9 @@ const GrantAdmin = () => {
                   </div>
                   
                   {superAdminCapId ? (
-                    <Alert className="mt-4 bg-purple-900/20 border-purple-800/30">
-                      <AlertDescription className="text-purple-300 text-sm">
-                        You are granting admin access using SuperAdminCap: {truncateAddress(superAdminCapId)}
+                    <Alert className="mt-4 bg-blue-900/20 border-blue-800/30">
+                      <AlertDescription className="text-blue-300 text-sm">
+                        You are using SuperAdminCap: {truncateAddress(superAdminCapId)}
                       </AlertDescription>
                     </Alert>
                   ) : (

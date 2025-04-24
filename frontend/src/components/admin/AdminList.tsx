@@ -114,7 +114,7 @@ const AdminList = () => {
               <div className="flex items-center gap-2">
                 <SearchCheck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Verified administrators with system privileges
+                  System administrators with dashboard access
                 </p>
               </div>
             </div>
