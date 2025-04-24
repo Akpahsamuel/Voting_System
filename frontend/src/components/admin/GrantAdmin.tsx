@@ -47,29 +47,6 @@ const GrantAdmin = () => {
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const suiClient = useSuiClient();
   
-  // Check if user has SuperAdminCap - only SuperAdmins can grant admin access
-  if (!hasSuperAdminCap) {
-    return (
-      <Card className="bg-red-900/30 border-red-800/50">
-        <CardHeader className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-red-300">
-            <AlertTriangle className="h-6 w-6" />
-            Access Denied
-          </CardTitle>
-          <CardDescription className="text-white/70">
-            Only SuperAdmin users can grant admin access
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-white/70 mb-4">
-            You need to have a SuperAdminCap capability to grant admin access to other users.
-            Regular AdminCap holders cannot perform this action.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-  
   // Detect the current network
   useEffect(() => {
     const detectNetwork = async () => {
@@ -369,243 +346,265 @@ const GrantAdmin = () => {
   
   return (
     <div className="space-y-8">
-      <Card className="bg-black/30 border-white/20">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <UserPlus className="h-6 w-6 text-blue-400" />
-            Grant Admin Access <Badge className="ml-2 bg-purple-600">SuperAdmin Only</Badge>
-          </CardTitle>
-          <CardDescription>
-            Provide a Sui address to grant administrator privileges to another user
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Recipient Address</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="0x..." 
-                        {...field} 
-                        className="w-full font-mono" 
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Enter the complete Sui wallet address that will receive admin privileges
-                    </FormDescription>
-                    <FormMessage className="text-red-400" />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="pt-4">
-                <Button 
-                  type="submit" 
-                  className="w-full sm:w-auto ml-auto bg-blue-600 hover:bg-blue-700 text-white" 
-                  disabled={isLoading || !form.formState.isValid}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Granting access...
-                    </>
-                  ) : (
-                    "Grant Admin Capability"
-                  )}
-                </Button>
-              </div>
-              
-              {superAdminCapId ? (
-                <Alert className="mt-4 bg-purple-900/20 border-purple-800/30">
-                  <AlertDescription className="text-purple-300 text-sm">
-                    You are granting admin access using SuperAdminCap: {truncateAddress(superAdminCapId)}
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Alert className="mt-4 bg-amber-900/20 border-amber-800/30">
-                  <AlertDescription className="text-amber-300 text-sm">
-                    SuperAdminCap not found in your wallet. You cannot grant admin access.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-black/30 border-white/20">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
-              Current Administrators
+      {!hasSuperAdminCap ? (
+        <Card className="bg-red-900/30 border-red-800/50">
+          <CardHeader className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-red-300">
+              <AlertTriangle className="h-6 w-6" />
+              Access Denied
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                <DropdownMenuTrigger asChild>
+            <CardDescription className="text-white/70">
+              Only SuperAdmin users can grant admin access
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-white/70 mb-4">
+              You need to have a SuperAdminCap capability to grant admin access to other users.
+              Regular AdminCap holders cannot perform this action.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card className="bg-black/30 border-white/20">
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                <UserPlus className="h-6 w-6 text-blue-400" />
+                Grant Admin Access <Badge className="ml-2 bg-purple-600">SuperAdmin Only</Badge>
+              </CardTitle>
+              <CardDescription>
+                Provide a Sui address to grant administrator privileges to another user
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Recipient Address</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="0x..." 
+                            {...field} 
+                            className="w-full font-mono" 
+                            disabled={isLoading}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Enter the complete Sui wallet address that will receive admin privileges
+                        </FormDescription>
+                        <FormMessage className="text-red-400" />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="pt-4">
+                    <Button 
+                      type="submit" 
+                      className="w-full sm:w-auto ml-auto bg-blue-600 hover:bg-blue-700 text-white" 
+                      disabled={isLoading || !form.formState.isValid}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Granting access...
+                        </>
+                      ) : (
+                        "Grant Admin Capability"
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {superAdminCapId ? (
+                    <Alert className="mt-4 bg-purple-900/20 border-purple-800/30">
+                      <AlertDescription className="text-purple-300 text-sm">
+                        You are granting admin access using SuperAdminCap: {truncateAddress(superAdminCapId)}
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <Alert className="mt-4 bg-amber-900/20 border-amber-800/30">
+                      <AlertDescription className="text-amber-300 text-sm">
+                        SuperAdminCap not found in your wallet. You cannot grant admin access.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/30 border-white/20">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                  Current Administrators
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-300 border-blue-500/30 bg-blue-900/20 hover:bg-blue-900/30"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setDropdownOpen(!dropdownOpen);
+                        }}
+                      >
+                        {explorerNetwork.toUpperCase()}
+                        <ChevronDown className="ml-1 h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
+                      <DropdownMenuLabel>Explorer Network</DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-blue-900" />
+                      <DropdownMenuItem 
+                        className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'mainnet' ? 'bg-blue-800/50' : ''}`}
+                        onClick={() => {
+                          setExplorerNetwork('mainnet');
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        MAINNET
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'testnet' ? 'bg-blue-800/50' : ''}`}
+                        onClick={() => {
+                          setExplorerNetwork('testnet');
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        TESTNET
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'devnet' ? 'bg-blue-800/50' : ''}`}
+                        onClick={() => {
+                          setExplorerNetwork('devnet');
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        DEVNET
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-blue-300 border-blue-500/30 bg-blue-900/20 hover:bg-blue-900/30"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setDropdownOpen(!dropdownOpen);
-                    }}
+                    className="text-blue-400 border-blue-500/30 hover:bg-blue-900/30"
+                    onClick={fetchAdminAddresses}
+                    disabled={isLoadingAdmins}
                   >
-                    {explorerNetwork.toUpperCase()}
-                    <ChevronDown className="ml-1 h-3 w-3" />
+                    {isLoadingAdmins ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                    )}
+                    Refresh
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
-                  <DropdownMenuLabel>Explorer Network</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-blue-900" />
-                  <DropdownMenuItem 
-                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'mainnet' ? 'bg-blue-800/50' : ''}`}
-                    onClick={() => {
-                      setExplorerNetwork('mainnet');
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    MAINNET
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'testnet' ? 'bg-blue-800/50' : ''}`}
-                    onClick={() => {
-                      setExplorerNetwork('testnet');
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    TESTNET
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    className={`hover:bg-blue-900/50 cursor-pointer ${explorerNetwork === 'devnet' ? 'bg-blue-800/50' : ''}`}
-                    onClick={() => {
-                      setExplorerNetwork('devnet');
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    DEVNET
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-blue-400 border-blue-500/30 hover:bg-blue-900/30"
-                onClick={fetchAdminAddresses}
-                disabled={isLoadingAdmins}
-              >
-                {isLoadingAdmins ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                Refresh
-              </Button>
-            </div>
-          </div>
-          <CardDescription>
-            Addresses with administrator privileges on the dashboard
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          {isLoadingAdmins ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-              <span className="ml-2 text-white/70">Loading administrators...</span>
-            </div>
-          ) : fetchError ? (
-            <Alert className="bg-red-900/20 border-red-800/30 text-red-300">
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                {fetchError}
-              </AlertDescription>
-            </Alert>
-          ) : adminAddresses.length === 0 ? (
-            <Alert className="bg-amber-900/20 border-amber-800/30 text-amber-300">
-              <AlertTitle>No administrators found</AlertTitle>
-              <AlertDescription>
-                There are no addresses with administrator privileges registered in the dashboard.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <div className="space-y-3">
-              {adminAddresses.map((address, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-                  <div className="flex items-center">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400 mr-2" />
-                    <span className="text-white font-mono break-all">
-                      {truncateAddress(address)}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2 shrink-0 ml-2">
-                    <Button 
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
-                      onClick={() => copyToClipboard(address)}
-                      title="Copy address"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
+                </div>
+              </div>
+              <CardDescription>
+                Addresses with administrator privileges on the dashboard
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              {isLoadingAdmins ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+                  <span className="ml-2 text-white/70">Loading administrators...</span>
+                </div>
+              ) : fetchError ? (
+                <Alert className="bg-red-900/20 border-red-800/30 text-red-300">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    {fetchError}
+                  </AlertDescription>
+                </Alert>
+              ) : adminAddresses.length === 0 ? (
+                <Alert className="bg-amber-900/20 border-amber-800/30 text-amber-300">
+                  <AlertTitle>No administrators found</AlertTitle>
+                  <AlertDescription>
+                    There are no addresses with administrator privileges registered in the dashboard.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-3">
+                  {adminAddresses.map((address, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex items-center">
+                        <ShieldCheck className="h-4 w-4 text-emerald-400 mr-2" />
+                        <span className="text-white font-mono break-all">
+                          {truncateAddress(address)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 shrink-0 ml-2">
+                        <Button 
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
-                          title="View in explorer"
+                          onClick={() => copyToClipboard(address)}
+                          title="Copy address"
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <Copy className="h-4 w-4" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
-                        <DropdownMenuLabel>View in Explorer</DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-blue-900" />
-                        <DropdownMenuItem 
-                          className="hover:bg-blue-900/50 cursor-pointer"
-                          onClick={() => openInExplorer(address, 0)}
-                        >
-                          SuiScan
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="hover:bg-blue-900/50 cursor-pointer"
-                          onClick={() => openInExplorer(address, 1)}
-                        >
-                          Sui Explorer
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="hover:bg-blue-900/50 cursor-pointer"
-                          onClick={() => openInExplorer(address, 2)}
-                        >
-                          SuiVision
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
+                              title="View in explorer"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-blue-950 border-blue-900 text-white">
+                            <DropdownMenuLabel>View in Explorer</DropdownMenuLabel>
+                            <DropdownMenuSeparator className="bg-blue-900" />
+                            <DropdownMenuItem 
+                              className="hover:bg-blue-900/50 cursor-pointer"
+                              onClick={() => openInExplorer(address, 0)}
+                            >
+                              SuiScan
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="hover:bg-blue-900/50 cursor-pointer"
+                              onClick={() => openInExplorer(address, 1)}
+                            >
+                              Sui Explorer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="hover:bg-blue-900/50 cursor-pointer"
+                              onClick={() => openInExplorer(address, 2)}
+                            >
+                              SuiVision
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          <Separator className="my-4 bg-white/10" />
-          
-          <div className="text-sm text-white/60">
-            <p>
-              Note: Granting admin access will transfer an AdminCap object to the recipient's address
-              and register them in the dashboard's admin registry. This operation cannot be reversed directly.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              <Separator className="my-4 bg-white/10" />
+              
+              <div className="text-sm text-white/60">
+                <p>
+                  Note: Granting admin access will transfer an AdminCap object to the recipient's address
+                  and register them in the dashboard's admin registry. This operation cannot be reversed directly.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };

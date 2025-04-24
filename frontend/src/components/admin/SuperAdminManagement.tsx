@@ -6,18 +6,28 @@ import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UserPlus, UserMinus, ShieldCheck, RefreshCw } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, ShieldCheck, RefreshCw, Copy, ExternalLink, AlertCircle, InfoIcon } from "lucide-react";
 import { SuiObjectData } from "@mysten/sui/client";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { getExecutionStatus, getTransactionDigest } from "@mysten/sui.js/transactions";
+import { useSuiClient } from "@mysten/dapp-kit";
+import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
+import { DEVNET_PACKAGE_ID } from "../../config/constants";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { parseAdminAddressesFromDashboard } from "../../utils/parseAdminAddress";
+import { Spinner } from "../ui/spinner";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon, ClipboardIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { getAddressUrl, openInExplorer } from "../../utils/explorerUtils";
 
 // Import shadcn components
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { Separator } from "../ui/separator";
 import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Separator } from "../ui/separator";
 
 // Form schema validation
 const formSchema = z.object({
@@ -26,6 +36,7 @@ const formSchema = z.object({
       (val) => val.startsWith("0x") && val.length >= 20,
       { message: "Invalid Sui address format. Address must start with '0x' and be at least 20 characters long." }
     ),
+  capabilityId: z.string().optional()
 });
 
 interface SuperAdminManagementProps {
@@ -37,14 +48,18 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
   const [isLoadingGrantAdmin, setIsLoadingGrantAdmin] = useState(false);
   const [isLoadingGrantSuperAdmin, setIsLoadingGrantSuperAdmin] = useState(false);
   const [isLoadingRevokeAdmin, setIsLoadingRevokeAdmin] = useState(false);
+  const [isLoadingRevokeSuperAdmin, setIsLoadingRevokeSuperAdmin] = useState(false);
   const [adminAddresses, setAdminAddresses] = useState<string[]>([]);
   const [superAdminAddresses, setSuperAdminAddresses] = useState<string[]>([]);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [adminCapabilities, setAdminCapabilities] = useState<{address: string, capId: string}[]>([]);
+  const [isLoadingCapabilities, setIsLoadingCapabilities] = useState<boolean>(false);
   
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId");
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const suiClient = useSuiClient();
 
   // Fetch dashboard data to get admin and superadmin addresses
   const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery(
@@ -123,6 +138,15 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
     resolver: zodResolver(formSchema),
     defaultValues: {
       address: "",
+      capabilityId: ""
+    },
+  });
+
+  const revokeSuperAdminForm = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      address: "",
+      capabilityId: ""
     },
   });
 
@@ -212,10 +236,89 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
     }
   };
 
+  const fetchAdminCapabilities = async () => {
+    if (adminAddresses.length === 0) return;
+    
+    setIsLoadingCapabilities(true);
+    try {
+      // We need to search for owned objects for each admin address
+      const capabilities: {address: string, capId: string}[] = [];
+      
+      // Process in batches to avoid too many parallel requests
+      for (let i = 0; i < adminAddresses.length; i++) {
+        const address = adminAddresses[i];
+        try {
+          const ownedObjects = await suiClient.getOwnedObjects({
+            owner: address,
+            filter: {
+              StructType: `${packageId}::dashboard::AdminCap`
+            },
+            options: {
+              showContent: true
+            }
+          });
+          
+          if (ownedObjects.data && ownedObjects.data.length > 0) {
+            ownedObjects.data.forEach(obj => {
+              if (obj.data) {
+                capabilities.push({
+                  address,
+                  capId: obj.data.objectId
+                });
+              }
+            });
+          }
+          
+          // If this is a superadmin, also fetch their SuperAdminCap
+          if (superAdminAddresses.includes(address)) {
+            const superAdminObjects = await suiClient.getOwnedObjects({
+              owner: address,
+              filter: {
+                StructType: `${packageId}::dashboard::SuperAdminCap`
+              },
+              options: {
+                showContent: true
+              }
+            });
+            
+            if (superAdminObjects.data && superAdminObjects.data.length > 0) {
+              superAdminObjects.data.forEach(obj => {
+                if (obj.data) {
+                  capabilities.push({
+                    address,
+                    capId: obj.data.objectId
+                  });
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching capabilities for ${address}:`, error);
+        }
+      }
+      
+      setAdminCapabilities(capabilities);
+    } catch (error) {
+      console.error("Error fetching admin capabilities:", error);
+    } finally {
+      setIsLoadingCapabilities(false);
+    }
+  };
+
   const handleRevokeAdmin = async (values: z.infer<typeof formSchema>) => {
     if (!superAdminCapId) {
       toast.error("SuperAdmin capability not found");
       return;
+    }
+    
+    // If capabilityId is not provided, try to find it from adminCapabilities
+    let capabilityId = values.capabilityId;
+    if (!capabilityId) {
+      capabilityId = getCapabilityId(values.address);
+      if (!capabilityId) {
+        toast.error("Admin capability ID could not be determined. Please enter it manually.");
+        return;
+      }
     }
     
     try {
@@ -228,6 +331,7 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
         arguments: [
           tx.object(superAdminCapId),
           tx.object(dashboardId),
+          tx.object(capabilityId),
           tx.pure.address(values.address)
         ],
       });
@@ -255,14 +359,109 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
     }
   };
 
+  const handleRevokeSuperAdmin = async (values: z.infer<typeof formSchema>) => {
+    if (!superAdminCapId) {
+      toast.error("SuperAdmin capability not found");
+      return;
+    }
+    
+    // If capabilityId is not provided, try to find it from adminCapabilities
+    let capabilityId = values.capabilityId;
+    if (!capabilityId) {
+      // Filter for superadmin capabilities
+      const superCapabilities = adminCapabilities.filter(cap => 
+        cap.address === values.address && 
+        superAdminAddresses.includes(values.address)
+      );
+      
+      if (superCapabilities.length > 0) {
+        capabilityId = superCapabilities[0].capId;
+      }
+      
+      if (!capabilityId) {
+        toast.error("SuperAdmin capability ID could not be determined. Please enter it manually.");
+        return;
+      }
+    }
+    
+    try {
+      setIsLoadingRevokeSuperAdmin(true);
+      
+      // Create a transaction to revoke super admin privileges
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${packageId}::dashboard::revoke_super_admin`,
+        arguments: [
+          tx.object(superAdminCapId),
+          tx.object(dashboardId),
+          tx.object(capabilityId),
+          tx.pure.address(values.address)
+        ],
+      });
+      
+      await signAndExecute({
+        transaction: tx.serialize()
+      }, {
+        onSuccess: async (result) => {
+          console.log("Revoke super admin transaction successful:", result);
+          toast.success(`SuperAdmin privileges revoked from ${values.address}`);
+          revokeSuperAdminForm.reset();
+          await refetchDashboard();
+          if (onRefresh) onRefresh();
+        },
+        onError: (error) => {
+          console.error("Revoke super admin transaction failed:", error);
+          toast.error(`Failed to revoke super admin: ${error.message}`);
+        },
+      });
+    } catch (error) {
+      console.error("Error in revoke super admin:", error);
+      toast.error(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsLoadingRevokeSuperAdmin(false);
+    }
+  };
+
   const refreshData = async () => {
     try {
       setIsLoadingAdmins(true);
       await refetchDashboard();
+      // Fetch capabilities after dashboard is refreshed
+      await fetchAdminCapabilities();
     } catch (error) {
       console.error("Error refreshing data:", error);
       toast.error("Failed to refresh data");
+    } finally {
+      setIsLoadingAdmins(false);
     }
+  };
+
+  // Utility functions
+  const truncateAddress = (address: string) => {
+    if (!address) return "";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Address copied to clipboard");
+  };
+
+  // Call fetchAdminCapabilities when adminAddresses changes
+  useEffect(() => {
+    if (adminAddresses.length > 0) {
+      fetchAdminCapabilities();
+    }
+  }, [adminAddresses]);
+
+  // Helper function to find capability ID for an address
+  const getCapabilityId = (address: string, isSuper: boolean = false): string => {
+    const capabilities = adminCapabilities.filter(cap => 
+      cap.address === address
+    );
+    
+    if (capabilities.length === 0) return "";
+    return capabilities[0].capId;
   };
 
   return (
@@ -280,10 +479,11 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="grant-admin">
-          <TabsList className="grid grid-cols-3 mb-4">
+          <TabsList className="grid grid-cols-4 mb-4">
             <TabsTrigger value="grant-admin">Grant Admin</TabsTrigger>
             <TabsTrigger value="grant-superadmin">Grant SuperAdmin</TabsTrigger>
             <TabsTrigger value="revoke-admin">Revoke Admin</TabsTrigger>
+            <TabsTrigger value="revoke-superadmin">Revoke SuperAdmin</TabsTrigger>
           </TabsList>
           
           <TabsContent value="grant-admin">
@@ -385,6 +585,22 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={revokeAdminForm.control}
+                  name="capabilityId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white">Admin Capability ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0x..." {...field} className="bg-gray-800 border-gray-700 text-white" />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the ID of the admin capability to revoke
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <Button 
                   type="submit" 
                   className="w-full bg-red-600 hover:bg-red-700"
@@ -404,6 +620,150 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                 </Button>
               </form>
             </Form>
+          </TabsContent>
+          
+          <TabsContent value="revoke-superadmin">
+            <Form {...revokeSuperAdminForm}>
+              <form onSubmit={revokeSuperAdminForm.handleSubmit(handleRevokeSuperAdmin)} className="space-y-4">
+                <FormField
+                  control={revokeSuperAdminForm.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white">Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0x..." {...field} className="bg-gray-800 border-gray-700 text-white" />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the address to revoke super admin privileges
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={revokeSuperAdminForm.control}
+                  name="capabilityId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-white">SuperAdmin Capability ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0x..." {...field} className="bg-gray-800 border-gray-700 text-white" />
+                      </FormControl>
+                      <FormDescription>
+                        Enter the ID of the super admin capability to revoke
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button 
+                  type="submit" 
+                  className="w-full bg-red-600 hover:bg-red-700"
+                  disabled={isLoadingRevokeSuperAdmin}
+                >
+                  {isLoadingRevokeSuperAdmin ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Revoking SuperAdmin...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Revoke SuperAdmin Privileges
+                    </>
+                  )}
+                </Button>
+              </form>
+            </Form>
+            
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-white mb-3">Current Super Admins</h3>
+              {isLoadingAdmins ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : fetchError ? (
+                <Alert variant="destructive" className="bg-red-900 border-red-800 text-white">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{fetchError}</AlertDescription>
+                </Alert>
+              ) : superAdminAddresses.length === 0 ? (
+                <Alert className="bg-gray-800 border-gray-700 text-gray-300">
+                  <InfoIcon className="h-4 w-4" />
+                  <AlertTitle>No Super Admins</AlertTitle>
+                  <AlertDescription>There are no super admins registered yet.</AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-2">
+                  {superAdminAddresses.map((address) => {
+                    // Find superadmin capability ID
+                    const capabilityId = adminCapabilities.find(cap => 
+                      cap.address === address && superAdminAddresses.includes(address)
+                    )?.capId || "";
+                    
+                    return (
+                      <div key={address} className="flex items-center justify-between p-3 bg-gray-800 rounded-md">
+                        <div className="flex flex-col">
+                          <div className="flex items-center space-x-2">
+                            <ShieldCheck className="h-4 w-4 text-yellow-500" />
+                            <span className="text-sm font-mono text-gray-300">{truncateAddress(address)}</span>
+                          </div>
+                          {capabilityId && (
+                            <span className="text-xs text-gray-400 font-mono ml-6 mt-1">
+                              Cap ID: {truncateAddress(capabilityId)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-gray-400"
+                            onClick={() => copyToClipboard(address)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-gray-400"
+                            onClick={() => openInExplorer(address)}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-gray-400"
+                            onClick={() => {
+                              revokeSuperAdminForm.setValue("address", address);
+                              if (capabilityId) {
+                                revokeSuperAdminForm.setValue("capabilityId", capabilityId);
+                              }
+                            }}
+                          >
+                            <UserMinus className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex justify-end mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshData}
+                  className="text-gray-400 border-gray-700"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
         
@@ -426,16 +786,39 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
               <p className="text-gray-400">No administrators found</p>
             ) : (
               <div className="grid grid-cols-1 gap-2">
-                {adminAddresses.map((address, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 rounded bg-gray-800">
-                    <div className="flex items-center">
-                      <span className="text-white break-all">{address}</span>
+                {adminAddresses.map((address, index) => {
+                  const capabilityId = getCapabilityId(address);
+                  return (
+                    <div key={index} className="flex items-center justify-between p-2 rounded bg-gray-800">
+                      <div className="flex flex-col">
+                        <span className="text-white break-all">{address}</span>
+                        {capabilityId && (
+                          <span className="text-xs text-gray-400 font-mono">
+                            Cap ID: {truncateAddress(capabilityId)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex space-x-2 items-center">
+                        {superAdminAddresses.includes(address) && (
+                          <Badge className="bg-purple-600">SuperAdmin</Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-red-400"
+                          onClick={() => {
+                            revokeAdminForm.setValue("address", address);
+                            if (capabilityId) {
+                              revokeAdminForm.setValue("capabilityId", capabilityId);
+                            }
+                          }}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    {superAdminAddresses.includes(address) && (
-                      <Badge className="ml-2 bg-purple-600">SuperAdmin</Badge>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

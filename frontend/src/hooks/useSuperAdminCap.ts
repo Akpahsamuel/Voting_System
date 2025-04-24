@@ -1,45 +1,90 @@
-import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useCurrentAccount, useSuiClient, useSuiClientQuery } from '@mysten/dapp-kit';
 import { useNetworkVariable } from '../config/networkConfig';
+import { useCallback, useEffect, useState } from 'react';
 
 export function useSuperAdminCap() {
   const account = useCurrentAccount();
+  const walletAddress = account?.address;
   const packageId = useNetworkVariable('packageId');
-  
-  // Log the wallet address and package ID for debugging
-  console.log("Current wallet address (SuperAdmin check):", account?.address);
-  console.log("Package ID being used (SuperAdmin check):", packageId);
-  
-  const { data, isLoading, error, refetch } = useSuiClientQuery('getOwnedObjects', {
-    owner: account?.address || "",
-    filter: {
-      StructType: `${packageId}::dashboard::SuperAdminCap`
-    },
+  const dashboardId = useNetworkVariable('dashboardId'); 
+  const [superAdminCapId, setSuperAdminCapId] = useState<string | null>(null);
+  const [hasSuperAdminCap, setHasSuperAdminCap] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  const suiClient = useSuiClient();
+
+  // Query for dashboard data to check revoked caps
+  const { data: dashboardData } = useSuiClientQuery('getObject', {
+    id: dashboardId,
     options: {
-      showContent: true
-    }
-  }, {
-    enabled: !!account?.address,
+      showContent: true,
+    },
   });
-  
-  const superAdminCap = data?.data?.[0];
-  const hasSuperAdminCap = !!superAdminCap;
-  
-  // Log the result of the superadmin capability check
-  console.log("SuperAdmin capability found:", hasSuperAdminCap);
-  if (hasSuperAdminCap) {
-    console.log("SuperAdmin capability ID:", superAdminCap?.data?.objectId);
-  }
-  
-  if (error) {
-    console.error("Error fetching superadmin capability:", error);
-  }
-  
-  return {
-    superAdminCap,
-    superAdminCapId: superAdminCap?.data?.objectId,
-    hasSuperAdminCap,
-    isLoading,
-    error,
-    refetch
-  };
+
+  const fetchSuperAdminCap = useCallback(async () => {
+    if (!walletAddress) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('Checking SuperAdminCap for wallet:', walletAddress);
+      console.log('Using package ID:', packageId);
+
+      // Query for SuperAdminCap objects owned by this address
+      const ownedObjects = await suiClient.getOwnedObjects({
+        owner: walletAddress,
+        filter: {
+          StructType: `${packageId}::dashboard::SuperAdminCap`
+        },
+        options: {
+          showContent: true
+        }
+      });
+
+      if (ownedObjects.data && ownedObjects.data.length > 0) {
+        const superAdminCap = ownedObjects.data[0];
+        
+        if (superAdminCap && superAdminCap.data) {
+          const capId = superAdminCap.data.objectId;
+          setSuperAdminCapId(capId);
+          
+          // Check if this SuperAdminCap is revoked
+          let isRevoked = false;
+          if (dashboardData?.data?.content?.dataType === 'moveObject') {
+            const dashboardContent = dashboardData.data.content;
+            // Check if there's revoked_super_admin_caps in the dashboard content
+            const revokedCapsString = JSON.stringify(dashboardContent.fields);
+            isRevoked = revokedCapsString.includes(capId);
+          }
+          
+          // Only set hasSuperAdminCap to true if the cap is not revoked
+          setHasSuperAdminCap(!isRevoked);
+          console.log('SuperAdminCap found:', capId, 'Revoked:', isRevoked);
+        } else {
+          setHasSuperAdminCap(false);
+          setSuperAdminCapId(null);
+        }
+      } else {
+        setHasSuperAdminCap(false);
+        setSuperAdminCapId(null);
+      }
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching SuperAdminCap:', err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setHasSuperAdminCap(false);
+      setSuperAdminCapId(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [walletAddress, packageId, suiClient, dashboardData]);
+
+  useEffect(() => {
+    fetchSuperAdminCap();
+  }, [fetchSuperAdminCap]);
+
+  return { hasSuperAdminCap, superAdminCapId, isLoading, error, refreshSuperAdminCap: fetchSuperAdminCap };
 } 
