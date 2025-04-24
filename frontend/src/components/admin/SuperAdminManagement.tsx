@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { useSignAndExecuteTransaction, useSuiClientQuery } from "@mysten/dapp-kit";
+import { useSignAndExecuteTransaction, useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
+import { useAdminCap } from "../../hooks/useAdminCap";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Loader2, UserPlus, UserMinus, ShieldCheck, RefreshCw, Copy, ExternalLink, AlertCircle, InfoIcon } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, ShieldCheck, RefreshCw, Copy, ExternalLink, AlertCircle, Info as InfoIcon } from "lucide-react";
 import { SuiObjectData } from "@mysten/sui/client";
 import { useCurrentAccount } from "@mysten/dapp-kit";
-import { getExecutionStatus, getTransactionDigest } from "@mysten/sui.js/transactions";
-import { useSuiClient } from "@mysten/dapp-kit";
 import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
-import { DEVNET_PACKAGE_ID } from "../../config/constants";
+// Commenting out imports that are causing errors
+// import { DEVNET_PACKAGE_ID } from "../../config/constants";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { parseAdminAddressesFromDashboard } from "../../utils/parseAdminAddress";
-import { Spinner } from "../ui/spinner";
+// import { parseAdminAddressesFromDashboard } from "../../utils/parseAdminAddress";
+// import { Spinner } from "../ui/spinner";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { CheckCircleIcon, ClipboardIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+// import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+// import { CheckCircleIcon, ClipboardIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { getAddressUrl, openInExplorer } from "../../utils/explorerUtils";
 
 // Import shadcn components
@@ -35,8 +35,7 @@ const formSchema = z.object({
     .refine(
       (val) => val.startsWith("0x") && val.length >= 20,
       { message: "Invalid Sui address format. Address must start with '0x' and be at least 20 characters long." }
-    ),
-  capabilityId: z.string().optional()
+    )
 });
 
 interface SuperAdminManagementProps {
@@ -138,7 +137,6 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
     resolver: zodResolver(formSchema),
     defaultValues: {
       address: "",
-      capabilityId: ""
     },
   });
 
@@ -146,7 +144,6 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
     resolver: zodResolver(formSchema),
     defaultValues: {
       address: "",
-      capabilityId: ""
     },
   });
 
@@ -311,27 +308,32 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
       return;
     }
     
-    // If capabilityId is not provided, try to find it from adminCapabilities
-    let capabilityId = values.capabilityId;
-    if (!capabilityId) {
-      capabilityId = getCapabilityId(values.address);
-      if (!capabilityId) {
-        toast.error("Admin capability ID could not be determined. Please enter it manually.");
-        return;
+    // Get the capability ID for the admin to revoke
+    // Since we need the capability ID for the current contract
+    let adminCapId = "";
+    for (const cap of adminCapabilities) {
+      if (cap.address === values.address) {
+        adminCapId = cap.capId;
+        break;
       }
+    }
+    
+    if (!adminCapId) {
+      toast.error("Could not find AdminCap ID for this address. Cannot revoke admin privileges.");
+      return;
     }
     
     try {
       setIsLoadingRevokeAdmin(true);
       
-      // Create a transaction to revoke admin privileges
+      // Create a transaction to revoke admin privileges using the original contract's required arguments
       const tx = new Transaction();
       tx.moveCall({
         target: `${packageId}::dashboard::revoke_admin`,
         arguments: [
           tx.object(superAdminCapId),
           tx.object(dashboardId),
-          tx.object(capabilityId),
+          tx.object(adminCapId), // Include the admin cap ID that the current contract requires
           tx.pure.address(values.address)
         ],
       });
@@ -365,36 +367,39 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
       return;
     }
     
-    // If capabilityId is not provided, try to find it from adminCapabilities
-    let capabilityId = values.capabilityId;
-    if (!capabilityId) {
-      // Filter for superadmin capabilities
-      const superCapabilities = adminCapabilities.filter(cap => 
-        cap.address === values.address && 
-        superAdminAddresses.includes(values.address)
-      );
-      
-      if (superCapabilities.length > 0) {
-        capabilityId = superCapabilities[0].capId;
+    // Get the dashboard data to identify the deployer (first super admin)
+    // Assuming the first address in the super admin list is the deployer/creator
+    if (superAdminAddresses.length > 0 && values.address === superAdminAddresses[0]) {
+      toast.error("Cannot revoke the deployer's super admin privileges");
+      return;
+    }
+    
+    // Get the capability ID for the super admin to revoke
+    // Since we need the capability ID for the current contract
+    let targetSuperAdminCapId = "";
+    for (const cap of adminCapabilities) {
+      if (cap.address === values.address) {
+        targetSuperAdminCapId = cap.capId;
+        break;
       }
-      
-      if (!capabilityId) {
-        toast.error("SuperAdmin capability ID could not be determined. Please enter it manually.");
-        return;
-      }
+    }
+    
+    if (!targetSuperAdminCapId) {
+      toast.error("Could not find SuperAdminCap ID for this address. Cannot revoke super admin privileges.");
+      return;
     }
     
     try {
       setIsLoadingRevokeSuperAdmin(true);
       
-      // Create a transaction to revoke super admin privileges
+      // Create a transaction to revoke super admin privileges using the required parameters
       const tx = new Transaction();
       tx.moveCall({
         target: `${packageId}::dashboard::revoke_super_admin`,
         arguments: [
           tx.object(superAdminCapId),
           tx.object(dashboardId),
-          tx.object(capabilityId),
+          tx.object(targetSuperAdminCapId), // Include the super admin cap ID that the current contract requires
           tx.pure.address(values.address)
         ],
       });
@@ -411,7 +416,13 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
         },
         onError: (error) => {
           console.error("Revoke super admin transaction failed:", error);
-          toast.error(`Failed to revoke super admin: ${error.message}`);
+          
+          // Check for specific error related to revoking deployer
+          if (error.message && error.message.includes("ECannotRevokeDeployer")) {
+            toast.error("Cannot revoke the package deployer's super admin privileges");
+          } else {
+            toast.error(`Failed to revoke super admin: ${error.message}`);
+          }
         },
       });
     } catch (error) {
@@ -567,6 +578,16 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
           </TabsContent>
           
           <TabsContent value="revoke-admin">
+            <div className="bg-blue-900/20 border border-blue-800/30 rounded-md p-4 mb-4">
+              <h4 className="text-blue-300 font-medium flex items-center gap-2 mb-1">
+                <InfoIcon className="h-4 w-4" /> Authorization Model
+              </h4>
+              <p className="text-blue-100/80 text-sm">
+                Admin privileges are based on address registration. When an address is revoked,
+                it is removed from the admin registry in the dashboard. All capabilities for that
+                address will no longer work, regardless of who possesses them.
+              </p>
+            </div>
             <Form {...revokeAdminForm}>
               <form onSubmit={revokeAdminForm.handleSubmit(handleRevokeAdmin)} className="space-y-4">
                 <FormField
@@ -585,22 +606,7 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={revokeAdminForm.control}
-                  name="capabilityId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white">Admin Capability ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="0x..." {...field} className="bg-gray-800 border-gray-700 text-white" />
-                      </FormControl>
-                      <FormDescription>
-                        Enter the ID of the admin capability to revoke
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                
                 <Button 
                   type="submit" 
                   className="w-full bg-red-600 hover:bg-red-700"
@@ -623,6 +629,16 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
           </TabsContent>
           
           <TabsContent value="revoke-superadmin">
+            <div className="bg-blue-900/20 border border-blue-800/30 rounded-md p-4 mb-4">
+              <h4 className="text-blue-300 font-medium flex items-center gap-2 mb-1">
+                <InfoIcon className="h-4 w-4" /> Authorization Model
+              </h4>
+              <p className="text-blue-100/80 text-sm">
+                SuperAdmin privileges are based on address registration. When an address is revoked,
+                it is removed from the superadmin registry in the dashboard. All superadmin capabilities 
+                for that address will no longer work, regardless of who possesses them.
+              </p>
+            </div>
             <Form {...revokeSuperAdminForm}>
               <form onSubmit={revokeSuperAdminForm.handleSubmit(handleRevokeSuperAdmin)} className="space-y-4">
                 <FormField
@@ -641,22 +657,7 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={revokeSuperAdminForm.control}
-                  name="capabilityId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-white">SuperAdmin Capability ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="0x..." {...field} className="bg-gray-800 border-gray-700 text-white" />
-                      </FormControl>
-                      <FormDescription>
-                        Enter the ID of the super admin capability to revoke
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                
                 <Button 
                   type="submit" 
                   className="w-full bg-red-600 hover:bg-red-700"
@@ -697,11 +698,14 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                 </Alert>
               ) : (
                 <div className="space-y-2">
-                  {superAdminAddresses.map((address) => {
+                  {superAdminAddresses.map((address, index) => {
                     // Find superadmin capability ID
                     const capabilityId = adminCapabilities.find(cap => 
                       cap.address === address && superAdminAddresses.includes(address)
                     )?.capId || "";
+                    
+                    // Determine if this is the deployer (first address in the list)
+                    const isDeployer = index === 0 || (superAdminAddresses.length > 0 && address === superAdminAddresses[0]);
                     
                     return (
                       <div key={address} className="flex items-center justify-between p-3 bg-gray-800 rounded-md">
@@ -709,6 +713,9 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                           <div className="flex items-center space-x-2">
                             <ShieldCheck className="h-4 w-4 text-yellow-500" />
                             <span className="text-sm font-mono text-gray-300">{truncateAddress(address)}</span>
+                            {isDeployer && (
+                              <Badge className="bg-green-600 text-white text-xs">Deployer</Badge>
+                            )}
                           </div>
                           {capabilityId && (
                             <span className="text-xs text-gray-400 font-mono ml-6 mt-1">
@@ -739,12 +746,11 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                             className="h-8 px-2 text-gray-400"
                             onClick={() => {
                               revokeSuperAdminForm.setValue("address", address);
-                              if (capabilityId) {
-                                revokeSuperAdminForm.setValue("capabilityId", capabilityId);
-                              }
                             }}
+                            disabled={isDeployer}
+                            title={isDeployer ? "Package deployer cannot be revoked" : "Revoke super admin privileges"}
                           >
-                            <UserMinus className="h-4 w-4 text-red-500" />
+                            <UserMinus className={`h-4 w-4 ${isDeployer ? 'text-gray-500' : 'text-red-500'}`} />
                           </Button>
                         </div>
                       </div>
@@ -808,9 +814,6 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
                           className="h-8 text-red-400"
                           onClick={() => {
                             revokeAdminForm.setValue("address", address);
-                            if (capabilityId) {
-                              revokeAdminForm.setValue("capabilityId", capabilityId);
-                            }
                           }}
                         >
                           <UserMinus className="h-4 w-4" />
