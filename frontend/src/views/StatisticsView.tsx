@@ -4,14 +4,18 @@ import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 import { useEffect, useState } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useVoteNfts } from "../hooks/useVoteNfts";
-import { VoteNft } from "../types";
+import { VoteNft, Proposal, ProposalStatus } from "../types";
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, TimeScale,} from 'chart.js';
 import { Pie, Bar, Line } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { NavLink } from "react-router-dom";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu } from "lucide-react";
+import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
+import React, { FC } from 'react';
+import Navbar from '../components/Navbar';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 // Register Chart.js components
 ChartJS.register(
@@ -27,7 +31,8 @@ ChartJS.register(
   TimeScale
 );
 
-interface ProposalData {
+// Define simplified proposal type for statistics
+interface StatProposal {
   id: string;
   title: string;
   votedYesCount: number;
@@ -37,12 +42,13 @@ interface ProposalData {
   creator: string;
 }
 
-const StatisticsView = () => {
+export const StatisticsView: FC = () => {
   const dashboardId = useNetworkVariable("dashboardId");
-  const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [proposals, setProposals] = useState<StatProposal[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'voting' | 'user'>('overview');
   const account = useCurrentAccount();
   const { data: voteNftsRes } = useVoteNfts();
+  const [isLoading, setIsLoading] = useState(true);
   
   // Fetch dashboard data to get proposal IDs
   const { data: dashboardData } = useSuiClientQuery(
@@ -94,9 +100,10 @@ const StatisticsView = () => {
           creator: fields.creator || "Unknown"
         };
       })
-      .filter(Boolean) as ProposalData[];
+      .filter((item): item is StatProposal => item !== null);
     
     setProposals(parsedProposals);
+    setIsLoading(false);
   }, [proposalsData]);
   
   // Extract user vote NFTs
@@ -166,7 +173,7 @@ const StatisticsView = () => {
       {
         label: 'Proposal Status',
         data: [
-          activeProposals - expiredProposals, 
+          activeAndNotExpired, 
           delistedProposals,
           expiredProposals
         ],
@@ -233,366 +240,274 @@ const StatisticsView = () => {
   // User-specific voted proposals
   const userVotedProposalDetails = proposals.filter(p => userVotedProposals.includes(p.id));
   
-  if (isPending) return <div className="text-center text-gray-500 p-8">Loading statistics...</div>;
+  if (isPending) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern pt-24">Loading statistics...</div>;
   
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4">
-      <nav className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 shadow-sm transition-all duration-300">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-              SuiVote
-            </span>
-            
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-1">
-              <NavLink to="/" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                <Home size={18} /> Home
-              </NavLink>
-              <NavLink to="/proposal" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                <FileText size={18} /> Proposals
-              </NavLink>
-              <NavLink to="/wallet" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                <Wallet size={18} /> Wallet
-              </NavLink>
-              <NavLink to="/statistics" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                <BarChart2 size={18} /> Statistics
-              </NavLink>
-              <NavLink to="/admin" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                <ShieldCheck size={18} /> Admin
-              </NavLink>
-            </div>
-            
-            {/* Connect Button and Mobile Menu */}
-            <div className="flex items-center gap-2">
-              <ConnectButton />
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu size={20} />
-              </Button>
-            </div>
+    <div className="min-h-screen bg-black bg-grid-pattern text-white">
+      <Navbar />
+      <div className="container mx-auto px-4 py-8 pt-24">
+        <h1 className="text-3xl font-bold mb-4 text-white">Governance Statistics</h1>
+        
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
           </div>
-        </div>
-      </nav>
-      
-      {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
-        <nav className="-mb-px flex">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`py-4 px-6 font-medium text-sm ${
-              activeTab === 'overview'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300'
-            }`}
-          >
-            Platform Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('voting')}
-            className={`py-4 px-6 font-medium text-sm ${
-              activeTab === 'voting'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300'
-            }`}
-          >
-            Voting Activity
-          </button>
-          <button
-            onClick={() => setActiveTab('user')}
-            className={`py-4 px-6 font-medium text-sm ${
-              activeTab === 'user'
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300'
-            }`}
-          >
-            Your Activity
-          </button>
-        </nav>
-      </div>
-      
-      {/* Overview Tab */}
-      {activeTab === 'overview' && (
-        <>
-          {/* Key Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Total Proposals</h3>
-              <p className="text-3xl font-bold">{totalProposals}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Active Proposals</h3>
-              <p className="text-3xl font-bold text-blue-500">{activeAndNotExpired}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Total Votes</h3>
-              <p className="text-3xl font-bold">{totalVotes}</p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Avg. Votes/Proposal</h3>
-              <p className="text-3xl font-bold text-green-500">
-                {totalProposals > 0 ? (totalVotes / totalProposals).toFixed(1) : '0'}
-              </p>
-            </div>
-          </div>
-          
-          {/* Status Chart */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Proposal Status</h3>
-              <div className="h-64">
-                <Pie data={statusDistributionData} options={{ maintainAspectRatio: false }} />
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Vote Distribution</h3>
-              <div className="h-64">
-                <Pie data={voteDistributionData} options={{ maintainAspectRatio: false }} />
-              </div>
-            </div>
-          </div>
-          
-          {/* Timeline Chart */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-8">
-            <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Voting Activity Over Time</h3>
-            <div className="h-64">
-              <Line 
-                data={timelineData} 
-                options={{ 
-                  maintainAspectRatio: false,
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      grid: {
-                        color: 'rgba(200, 200, 200, 0.2)',
-                      }
-                    },
-                    x: {
-                      grid: {
-                        display: false
-                      }
-                    }
-                  }
-                }} 
-              />
-            </div>
-          </div>
-        </>
-      )}
-      
-      {/* Voting Activity Tab */}
-      {activeTab === 'voting' && (
-        <>
-          {/* Top Proposals */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-8">
-            <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Most Active Proposals</h3>
-            <div className="h-80">
-              <Bar 
-                data={topProposalsData} 
-                options={{ 
-                  maintainAspectRatio: false,
-                  indexAxis: 'y',
-                  scales: {
-                    x: {
-                      beginAtZero: true,
-                      stacked: false,
-                      grid: {
-                        color: 'rgba(200, 200, 200, 0.2)',
-                      }
-                    },
-                    y: {
-                      stacked: false,
-                      grid: {
-                        display: false
-                      }
-                    }
-                  }
-                }} 
-              />
-            </div>
-          </div>
-          
-          {/* Proposal List */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-            <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">All Proposals</h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-100 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Yes Votes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">No Votes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Total</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Expiration</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                  {proposals.map((proposal) => (
-                    <tr key={proposal.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">{proposal.title}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          proposal.status === "Active" && proposal.expiration > now
-                            ? "bg-green-100 text-green-800"
-                            : proposal.status === "Delisted"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                        }`}>
-                          {proposal.status === "Active" && proposal.expiration > now
-                            ? "Active"
-                            : proposal.status === "Delisted"
-                              ? "Delisted"
-                              : "Expired"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {proposal.votedYesCount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {proposal.votedNoCount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {proposal.votedYesCount + proposal.votedNoCount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(proposal.expiration).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-      
-      {/* User Activity Tab */}
-      {activeTab === 'user' && (
-        <>
-          {account ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Your Participation</h3>
-                  <p className="text-3xl font-bold text-blue-500">{userVotedCount} / {totalProposals}</p>
-                  <div className="mt-4">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Participation Rate</span>
-                      <span className="text-sm font-medium text-blue-500">{userParticipationRate.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
-                      <div 
-                        className="bg-blue-500 h-2.5 rounded-full" 
-                        style={{ width: `${userParticipationRate}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Your Status</h3>
-                  <p className="text-3xl font-bold text-green-500">
-                    {userVotedCount > 0 ? (
-                      userVotedCount > totalProposals / 2 ? 'Active Voter' : 'Occasional Voter'
-                    ) : 'Not Participated'}
-                  </p>
-                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                    {userVotedCount > 0 ? (
-                      userVotedCount > totalProposals / 2 
-                        ? 'You are highly engaged with the platform!'
-                        : 'You have started participating in voting.'
-                    ) : 'You have not voted on any proposals yet.'}
-                  </p>
-                </div>
-                
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-medium text-gray-500 dark:text-gray-300 mb-2">Proposals to Vote</h3>
-                  <p className="text-3xl font-bold text-orange-500">
-                    {totalProposals - userVotedCount}
-                  </p>
-                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                    {totalProposals - userVotedCount > 0 
-                      ? 'There are still proposals waiting for your vote!' 
-                      : 'You have voted on all available proposals!'}
-                  </p>
-                </div>
-              </div>
+        ) : (
+          <>
+            <Tabs defaultValue="overview" className="w-full mb-8">
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="voting">Voting Statistics</TabsTrigger>
+                <TabsTrigger value="user">Your Activity</TabsTrigger>
+              </TabsList>
               
-              {/* User's Voted Proposals */}
-              {userVotedCount > 0 ? (
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Your Voted Proposals</h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-100 dark:bg-gray-700">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Proposal</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Yes Votes</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">No Votes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                        {userVotedProposalDetails.map((proposal) => (
-                          <tr key={proposal.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">{proposal.title}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                proposal.status === "Active" && proposal.expiration > now 
-                                  ? "bg-green-100 text-green-800" 
-                                  : proposal.status === "Delisted" 
-                                    ? "bg-red-100 text-red-800" 
-                                    : "bg-yellow-100 text-yellow-800"
-                              }`}>
-                                {proposal.status === "Active" && proposal.expiration > now 
-                                  ? "Active" 
-                                  : proposal.status === "Delisted" 
-                                    ? "Delisted" 
-                                    : "Expired"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {proposal.votedYesCount}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                              {proposal.votedNoCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              <TabsContent value="overview" className="space-y-6">
+                {/* Stats Summary */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Overview</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Total Proposals</h3>
+                      <p className="text-3xl font-bold text-blue-400">{totalProposals}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Active Proposals</h3>
+                      <p className="text-3xl font-bold text-green-400">{activeAndNotExpired}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Total Votes</h3>
+                      <p className="text-3xl font-bold text-purple-400">{totalVotes}</p>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg text-center">
+                      <h3 className="text-lg font-medium mb-1">Your Votes</h3>
+                      <p className="text-3xl font-bold text-orange-400">{userVotedCount}</p>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
-                  <h3 className="text-xl font-medium text-gray-700 dark:text-gray-300 mb-4">No Activity Yet</h3>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    You haven't voted on any proposals yet. Check out the available proposals and make your voice heard!
-                  </p>
-                  <button 
-                    onClick={() => window.location.href = '/'}
-                    className="mt-6 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-md transition-colors"
-                  >
-                    View Proposals
-                  </button>
+                
+                {/* Time-based Analytics Card */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Time-based Analytics</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Vote Trend</h3>
+                      <div className="h-64">
+                        <Line 
+                          data={timelineData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              },
+                              title: {
+                                display: false
+                              }
+                            },
+                            scales: {
+                              y: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              },
+                              x: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Proposal Status</h3>
+                      <div className="h-64">
+                        <Pie 
+                          data={statusDistributionData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
-              <h3 className="text-xl font-medium text-gray-700 dark:text-gray-300 mb-4">Connect Your Wallet</h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                Please connect your wallet to view your personal voting statistics.
-              </p>
-            </div>
-          )}
-        </>
-      )}
+              </TabsContent>
+              
+              <TabsContent value="voting" className="space-y-6">
+                {/* Outcome Visualization Card */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Outcome Visualization</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Vote Distribution</h3>
+                      <div className="h-64">
+                        <Pie 
+                          data={voteDistributionData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-black/30 p-4 rounded-lg">
+                      <h3 className="text-lg font-medium mb-3">Top Proposals by Votes</h3>
+                      <div className="h-64">
+                        <Bar 
+                          data={topProposalsData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y' as const,
+                            plugins: {
+                              legend: {
+                                position: 'top',
+                                labels: {
+                                  color: 'rgba(255, 255, 255, 0.8)'
+                                }
+                              }
+                            },
+                            scales: {
+                              y: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              },
+                              x: {
+                                ticks: { color: 'rgba(255, 255, 255, 0.6)' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="user" className="space-y-6">
+                {/* User Activity Card - Dedicated Tab */}
+                <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
+                  <h2 className="text-xl font-semibold mb-4">Your Voting Activity</h2>
+                  
+                  {!account ? (
+                    <div className="bg-black/30 p-6 rounded-lg text-center">
+                      <p className="text-white/70 mb-4">Connect your wallet to see your voting activity</p>
+                      <div className="flex justify-center">
+                        <ConnectButton />
+                      </div>
+                    </div>
+                  ) : userVotedCount === 0 ? (
+                    <div className="bg-black/30 p-6 rounded-lg text-center">
+                      <p className="text-white/70">You haven't voted on any proposals yet</p>
+                      <Button 
+                        className="mt-4 bg-blue-600 hover:bg-blue-700"
+                        onClick={() => window.location.href = '/proposal'}
+                      >
+                        View Available Proposals
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Proposals Voted</h3>
+                          <p className="text-2xl font-bold text-blue-400">{userVotedCount}</p>
+                        </div>
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Participation Rate</h3>
+                          <p className="text-2xl font-bold text-green-400">{userParticipationRate.toFixed(1)}%</p>
+                        </div>
+                        <div className="bg-black/30 p-4 rounded-lg text-center">
+                          <h3 className="text-sm font-medium mb-1 text-white/70">Voter Rank</h3>
+                          <p className="text-2xl font-bold text-purple-400">
+                            {userVotedCount > 3 ? "Power Voter" : userVotedCount > 0 ? "Active Voter" : "New Voter"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-black/30 rounded-lg overflow-hidden">
+                        <div className="px-4 py-3 bg-black/50">
+                          <h3 className="font-medium">Your Voted Proposals</h3>
+                        </div>
+                        
+                        <div className="divide-y divide-white/10">
+                          {userVotedProposalDetails.length > 0 ? (
+                            userVotedProposalDetails.map((proposal) => (
+                              <div key={proposal.id} className="p-4 hover:bg-white/5 transition-colors">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-medium text-white">{proposal.title}</h4>
+                                    <div className="flex items-center mt-1 text-sm text-white/60">
+                                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${proposal.status === 'Active' ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                                      {proposal.status}
+                                      <span className="mx-2">•</span>
+                                      {new Date(proposal.expiration).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="flex items-center gap-4">
+                                      <div>
+                                        <div className="text-xs text-white/60">Yes</div>
+                                        <div className="font-medium text-green-400">{proposal.votedYesCount}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-white/60">No</div>
+                                        <div className="font-medium text-red-400">{proposal.votedNoCount}</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Vote progress bar */}
+                                <div className="mt-3">
+                                  <div className="h-1.5 w-full bg-gray-700 rounded-full overflow-hidden">
+                                    {proposal.votedYesCount + proposal.votedNoCount > 0 && (
+                                      <div 
+                                        className="h-full bg-gradient-to-r from-green-400 to-blue-500"
+                                        style={{ 
+                                          width: `${(proposal.votedYesCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100}%` 
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="p-4 text-center text-white/60">No voted proposals found</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+      </div>
     </div>
   );
 };

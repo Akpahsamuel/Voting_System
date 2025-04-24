@@ -6,10 +6,8 @@ import { useVoteNfts } from "../hooks/useVoteNfts";
 import { VoteNft } from "../types";
 import UserStatistics from "../components/user/UserStatistics";
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { ConnectButton } from "@mysten/dapp-kit";
-import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu } from "lucide-react";
-import { Button } from "../components/ui/button";
+import Navbar from "../components/Navbar";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
 const ProposalView = () => {
   const dashboardId = useNetworkVariable("dashboardId");
@@ -25,79 +23,49 @@ const ProposalView = () => {
     }
   );
 
-  if (isPending) return <div className="text-center text-gray-500">Loading...</div>;
-  if (error) return <div className="text-red-500">Error: {error.message}</div>;
-  if (!dataResponse.data) return <div className="text-center text-red-500">Not Found...</div>;
+  if (isPending) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern pt-24">Loading...</div>;
+  if (error) return <div className="text-red-500 min-h-screen bg-black bg-grid-pattern pt-24">Error: {error.message}</div>;
+  if (!dataResponse.data) return <div className="text-center text-red-500 min-h-screen bg-black bg-grid-pattern pt-24">Not Found...</div>;
 
   const voteNfts = extractVoteNfts(voteNftsRes);
   const proposalIds = getDashboardFields(dataResponse.data)?.proposals_ids || [];
 
   return (
-    <>
-      <div className="mb-8 relative">
-        <div className="flex justify-between items-center mb-4">
-          <nav className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 shadow-sm transition-all duration-300">
-            <div className="container mx-auto px-4">
-              <div className="flex items-center justify-between h-16">
-                {/* Logo */}
-                <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-                  SuiVote
-                </span>
-                
-                {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center space-x-1">
-                  <NavLink to="/" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                    <Home size={18} /> Home
-                  </NavLink>
-                  <NavLink to="/proposal" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                    <FileText size={18} /> Proposals
-                  </NavLink>
-                  <NavLink to="/wallet" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                    <Wallet size={18} /> Wallet
-                  </NavLink>
-                  <NavLink to="/statistics" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                    <BarChart2 size={18} /> Statistics
-                  </NavLink>
-                  <NavLink to="/admin" className={({isActive}) => `px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 ${isActive ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/60"}`}>
-                    <ShieldCheck size={18} /> Admin
-                  </NavLink>
-                </div>
-                
-                {/* Connect Button and Mobile Menu */}
-                <div className="flex items-center gap-2">
-                  <ConnectButton />
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <Menu size={20} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </nav>
-          <button 
-            onClick={() => setShowStats(!showStats)}
-            className="text-blue-500 hover:underline text-sm"
-          >
-            {showStats ? 'Hide Statistics' : 'Show Statistics'}
-          </button>
-        </div>
+    <div className="min-h-screen bg-black bg-grid-pattern text-white">
+      <Navbar />
+      <div className="container mx-auto px-4 pt-24 pb-12">
+        <h1 className="text-3xl font-bold mb-6">Governance Proposals</h1>
         
-        {showStats && (
-          <UserStatistics proposalIds={proposalIds} userVoteNfts={voteNfts} />
-        )}
+        <Card className="bg-white/10 backdrop-blur-md border-white/20 mb-8">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-white text-xl">Platform Statistics</CardTitle>
+            <button 
+              onClick={() => setShowStats(!showStats)}
+              className="text-blue-400 hover:text-blue-300 hover:underline text-sm transition-colors"
+            >
+              {showStats ? 'Hide Statistics' : 'Show Statistics'}
+            </button>
+          </CardHeader>
+          
+          {showStats && (
+            <CardContent>
+              <UserStatistics proposalIds={proposalIds} userVoteNfts={voteNfts} />
+            </CardContent>
+          )}
+        </Card>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {proposalIds.map(id =>
+            <ProposalItem
+              key={id}
+              id={id}
+              onVoteTxSuccess={() => refetchNfts()}
+              voteNft={voteNfts.find((nft) => nft.proposalId === id)}
+            />
+          )}
+        </div>
       </div>
-      
-      <h2 className="text-2xl font-semibold mb-6">Available Proposals</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {proposalIds.map(id =>
-          <ProposalItem
-            key={id}
-            id={id}
-            onVoteTxSuccess={() => refetchNfts()}
-            voteNft={voteNfts.find((nft) => nft.proposalId === id)}
-          />
-        )}
-      </div>
-    </>
+    </div>
   )
 };
 

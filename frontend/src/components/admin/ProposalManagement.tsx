@@ -5,6 +5,7 @@ import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
 import { useAdminCap } from "../../hooks/useAdminCap";
+import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { toast } from "sonner";
 import { getObjectUrl, getTransactionUrl, openInExplorer } from "../../utils/explorerUtils";
 import { format } from "date-fns";
@@ -64,14 +65,28 @@ interface ProposalListItem {
   status: string;
 }
 
-const ProposalManagement = () => {
+interface ProposalManagementProps {
+  adminCapId?: string;
+}
+
+const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: providedAdminCapId }) => {
   const dashboardId = useNetworkVariable("dashboardId");
   const packageId = useNetworkVariable("packageId");
-  const { adminCapId } = useAdminCap();
+  const { adminCapId: hookAdminCapId, hasAdminCap } = useAdminCap();
+  const { superAdminCapId, hasSuperAdminCap } = useSuperAdminCap();
+  const adminCapId = providedAdminCapId || hookAdminCapId;
   const [proposals, setProposals] = useState<ProposalListItem[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [lastTxDigest, setLastTxDigest] = useState<{ id: string; digest: string } | null>(null);
+
+  // Log available capabilities
+  useEffect(() => {
+    console.log("ProposalManagement - AdminCap:", adminCapId);
+    console.log("ProposalManagement - Has AdminCap:", hasAdminCap);
+    console.log("ProposalManagement - SuperAdminCap:", superAdminCapId);
+    console.log("ProposalManagement - Has SuperAdminCap:", hasSuperAdminCap);
+  }, [adminCapId, hasAdminCap, superAdminCapId, hasSuperAdminCap]);
 
   // Fetch dashboard data to get proposal IDs
   const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery(
@@ -148,14 +163,33 @@ const ProposalManagement = () => {
   };
 
   const handleDelist = async (proposalId: string) => {
-    if (!adminCapId) return;
+    console.log("Attempting to delist proposal:", proposalId);
+    
+    // First decide which capability and function to use
+    const capId = hasSuperAdminCap ? superAdminCapId : adminCapId;
+    const functionTarget = hasSuperAdminCap 
+      ? `${packageId}::proposal::set_delisted_status_super`
+      : `${packageId}::proposal::set_delisted_status`;
+      
+    if (!capId) {
+      toast.error("No admin capability found");
+      return;
+    }
+    
+    console.log("Using capability:", capId);
+    console.log("Using function:", functionTarget);
+    
     setLoading(proposalId);
 
     try {
       const tx = new Transaction();
+      
       tx.moveCall({
-        target: `${packageId}::proposal::set_delisted_status`,
-        arguments: [tx.object(proposalId), tx.object(adminCapId)],
+        target: functionTarget,
+        arguments: [
+          tx.object(proposalId),
+          tx.object(capId)
+        ],
       });
 
       await signAndExecute(
@@ -164,32 +198,54 @@ const ProposalManagement = () => {
         },
         {
           onSuccess: async ({ digest }) => {
+            console.log("Delist transaction successful:", digest);
             toast.success("Proposal delisted successfully");
             setLastTxDigest({ id: proposalId, digest });
             await refetchDashboard();
             setLoading(null);
           },
           onError: (error) => {
+            console.error("Delist transaction failed:", error);
             toast.error(`Error delisting proposal: ${error.message}`);
             setLoading(null);
           },
         }
       );
     } catch (error: any) {
+      console.error("Error in delist transaction:", error);
       toast.error(`Error: ${error.message || error}`);
       setLoading(null);
     }
   };
 
   const handleActivate = async (proposalId: string) => {
-    if (!adminCapId) return;
+    console.log("Attempting to activate proposal:", proposalId);
+    
+    // First decide which capability and function to use
+    const capId = hasSuperAdminCap ? superAdminCapId : adminCapId;
+    const functionTarget = hasSuperAdminCap 
+      ? `${packageId}::proposal::set_active_status_super`
+      : `${packageId}::proposal::set_active_status`;
+      
+    if (!capId) {
+      toast.error("No admin capability found");
+      return;
+    }
+    
+    console.log("Using capability:", capId);
+    console.log("Using function:", functionTarget);
+    
     setLoading(proposalId);
 
     try {
       const tx = new Transaction();
+      
       tx.moveCall({
-        target: `${packageId}::proposal::set_active_status`,
-        arguments: [tx.object(proposalId), tx.object(adminCapId)],
+        target: functionTarget,
+        arguments: [
+          tx.object(proposalId),
+          tx.object(capId)
+        ],
       });
 
       await signAndExecute(
@@ -198,32 +254,54 @@ const ProposalManagement = () => {
         },
         {
           onSuccess: async ({ digest }) => {
+            console.log("Activate transaction successful:", digest);
             toast.success("Proposal activated successfully");
             setLastTxDigest({ id: proposalId, digest });
             await refetchDashboard();
             setLoading(null);
           },
           onError: (error) => {
+            console.error("Activate transaction failed:", error);
             toast.error(`Error activating proposal: ${error.message}`);
             setLoading(null);
           },
         }
       );
     } catch (error: any) {
+      console.error("Error in activate transaction:", error);
       toast.error(`Error: ${error.message || error}`);
       setLoading(null);
     }
   };
 
   const handleDelete = async (proposalId: string) => {
-    if (!adminCapId) return;
+    console.log("Attempting to delete proposal:", proposalId);
+    
+    // First decide which capability and function to use
+    const capId = hasSuperAdminCap ? superAdminCapId : adminCapId;
+    const functionTarget = hasSuperAdminCap 
+      ? `${packageId}::proposal::remove_super`
+      : `${packageId}::proposal::remove`;
+      
+    if (!capId) {
+      toast.error("No admin capability found");
+      return;
+    }
+    
+    console.log("Using capability:", capId);
+    console.log("Using function:", functionTarget);
+    
     setLoading(proposalId);
 
     try {
       const tx = new Transaction();
+      
       tx.moveCall({
-        target: `${packageId}::proposal::remove`,
-        arguments: [tx.object(proposalId), tx.object(adminCapId)],
+        target: functionTarget,
+        arguments: [
+          tx.object(proposalId),
+          tx.object(capId)
+        ],
       });
 
       await signAndExecute(
@@ -232,6 +310,7 @@ const ProposalManagement = () => {
         },
         {
           onSuccess: async ({ digest }) => {
+            console.log("Delete transaction successful:", digest);
             toast.success("Proposal deleted successfully");
             setLastTxDigest({ id: proposalId, digest });
             await refetchDashboard();
@@ -239,6 +318,7 @@ const ProposalManagement = () => {
             setDeleteConfirm(null);
           },
           onError: (error) => {
+            console.error("Delete transaction failed:", error);
             toast.error(`Error deleting proposal: ${error.message}`);
             setLoading(null);
             setDeleteConfirm(null);
@@ -246,6 +326,7 @@ const ProposalManagement = () => {
         }
       );
     } catch (error: any) {
+      console.error("Error in delete transaction:", error);
       toast.error(`Error: ${error.message || error}`);
       setLoading(null);
       setDeleteConfirm(null);

@@ -1,0 +1,15 @@
+import { SuiObjectData } from "@mysten/sui/client";
+import { Proposal } from "../types";
+
+export function parseProposal(data: SuiObjectData): Proposal | null {
+  if (data.content?.dataType !== "moveObject") return null;
+
+  const { voted_yes_count, voted_no_count, expiration, ...rest } = data.content.fields as any;
+
+  return {
+    ...rest,
+    votedYesCount: Number(voted_yes_count),
+    votedNoCount: Number(voted_no_count),
+    expiration: Number(expiration)
+  };
+} 

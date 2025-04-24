@@ -5,8 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/proposals_icon.jpeg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Proposal App</title>
-      <!-- Add fonts -->
+    
+    <!-- Preload and fallback for fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Roboto+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" as="style">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Roboto+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+    
+    <!-- Fallback font definitions -->
+    <style>
+      @font-face {
+        font-family: 'Audiowide';
+        src: local('Arial'), sans-serif;
+        font-display: swap;
+      }
+      body {
+        font-family: 'Audiowide', 'Roboto Mono', 'Inter', Arial, sans-serif;
+      }
+    </style>
+
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/sv.jpg" />
 

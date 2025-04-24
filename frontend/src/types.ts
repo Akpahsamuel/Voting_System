@@ -1,5 +1,3 @@
-
-
 export type ProposalStatus = {
   variant: "Active" | "Delisted";
 };
@@ -9,8 +7,8 @@ export interface Proposal {
   title: string;
   description: string;
   status: ProposalStatus,
-  votedYesCount: string;
-  votedNoCount: string;
+  votedYesCount: number;
+  votedNoCount: number;
   expiration: number;
   creator: string;
   voter_registry: string[];
