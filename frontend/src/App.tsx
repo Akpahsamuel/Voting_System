@@ -16,6 +16,7 @@ import AdminDashboard from "./views/AdminDashboard";
 import StatisticsView from "./views/StatisticsView";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import AdminDebug from "./pages/AdminDebug";
+import VotingPage from "./pages/ballot";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
   {
     path: "/statistics",
     element: <StatisticsView />,
+  },
+  {
+    path: "/ballot",
+    element: <VotingPage />,
   },
   // Explicit route for manual navigation to 404
   {
