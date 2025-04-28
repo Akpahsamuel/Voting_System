@@ -155,6 +155,11 @@ public entry fun revoke_admin(super_admin_cap: &SuperAdminCap, self: &mut Dashbo
     // Check if SuperAdminCap is revoked
     assert!(!is_super_admin_cap_revoked(self, &object::id(super_admin_cap)), ECapRevoked);
     
+    // Prevent revoking the deployer/creator's admin privileges
+    // The deployer is the first super admin added during initialization
+    let deployer = vec_set::into_keys(self.super_admin_addresses)[0];
+    assert!(admin_to_revoke != deployer, ECannotRevokeDeployer);
+    
     // Remove admin from the admin_addresses set
     if (vec_set::contains(&self.admin_addresses, &admin_to_revoke)) {
         vec_set::remove(&mut self.admin_addresses, &admin_to_revoke);
