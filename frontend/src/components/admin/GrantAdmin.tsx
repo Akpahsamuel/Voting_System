@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSignAndExecuteTransaction, useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
@@ -14,7 +14,7 @@ import { SuiObjectData } from "@mysten/sui/client";
 // Import shadcn components
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Separator } from "../ui/separator";
@@ -122,7 +122,7 @@ const GrantAdmin = () => {
   };
 
   // Fetch dashboard data to get admin addresses
-  const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery(
+  const { data: dashboardData } = useSuiClientQuery(
     "getObject",
     {
       id: dashboardId,

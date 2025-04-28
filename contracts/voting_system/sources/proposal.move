@@ -140,6 +140,15 @@ public fun create(
     id
 }
 
+/// Change the expiration date of a proposal (SuperAdmin only)
+public fun change_expiration_date(
+    self: &mut Proposal,
+    _super_admin_cap: &SuperAdminCap,
+    new_expiration: u64
+) {
+    self.expiration = new_expiration;
+}
+
 /// Create a new proposal using SuperAdminCap
 public fun create_super(
     _super_admin_cap: &SuperAdminCap,

@@ -1,8 +1,9 @@
 import { useSuiClientQuery } from "@mysten/dapp-kit";
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useMemo } from "react";
 import { SuiObjectData } from "@mysten/sui/client";
 import { Proposal, VoteNft } from "../../types";
 import { getObjectUrl, openInExplorer } from "../../utils/explorerUtils";
+import { formatTimeRemaining } from "../../utils/formatUtils";
 import { 
   Card, 
   CardContent, 
@@ -13,7 +14,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Separator } from "../../components/ui/separator";
 import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
-import { ThumbsUp, ThumbsDown, ExternalLink, Clock, AlertTriangle } from "lucide-react";
+import { ThumbsUp, ThumbsDown, ExternalLink, AlertTriangle, Clock } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Avatar, AvatarImage, AvatarFallback } from "../../components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
@@ -30,6 +31,7 @@ interface ProposalItemsProps {
 export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSuccess }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
   const { data: dataResponse, refetch: refetchProposal, error, isPending } = useSuiClientQuery(
     "getObject", {
       id,
@@ -39,6 +41,27 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
     }
   );
 
+  // Initialize proposal data
+  const proposal = useMemo(() => {
+    if (dataResponse?.data) {
+      return parseProposal(dataResponse.data);
+    }
+    return null;
+  }, [dataResponse?.data]);
+
+  // Handle countdown timer
+  useEffect(() => {
+    if (proposal?.expiration) {
+      setTimeRemaining(formatTimeRemaining(proposal.expiration));
+      const timer = setInterval(() => {
+        setTimeRemaining(formatTimeRemaining(proposal.expiration));
+      }, 60000); // Update every minute
+
+      return () => clearInterval(timer);
+    }
+  }, [proposal?.expiration]);
+
+  // Handle confetti effect
   useEffect(() => {
     if (showConfetti) {
       const duration = 2000;
@@ -124,31 +147,10 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
     );
   }
 
-  if (!dataResponse.data) return null;
+  if (!proposal) return null;
 
-  const proposal = parseProposal(dataResponse.data);
-  
-  if (!proposal) return (
-    <div className="transform-gpu perspective-1000">
-      <motion.div 
-        initial={{ rotateX: -10 }}
-        animate={{ rotateX: 0 }}
-        transition={{ duration: 0.5 }}
-        className="transform-gpu"
-      >
-        <Card className="w-full bg-amber-950/30 backdrop-blur-md border-amber-800/50 shadow-[0_10px_30px_-10px_rgba(255,200,80,0.3)]">
-          <CardContent className="pt-6">
-            <p className="text-center text-amber-400">No data found</p>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
-  );
-
-  const expiration = proposal.expiration;
   const isDelisted = proposal.status.variant === "Delisted";
-  const isExpired = isUnixTimeExpired(expiration) || isDelisted;
-  const isActive = !isExpired;
+  const isActive = !isDelisted;
   
   // Calculate vote percentages for progress bar
   const totalVotes = proposal.votedYesCount + proposal.votedNoCount;
@@ -176,7 +178,7 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
               duration: isActive ? 2 : 0.7
             }
           }}
-          whileHover={!isExpired ? {
+          whileHover={!isDelisted ? {
             rotateY: 5,
             rotateX: -5,
             scale: 1.02,
@@ -186,39 +188,47 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
         >
           <Card 
             className={`w-full transition-all duration-300 backdrop-blur-md border-white/20 ${
-              isExpired 
+              isDelisted 
                 ? "opacity-80 bg-white/5 border-white/10" 
                 : "bg-white/10 hover:bg-white/15 hover:border-blue-400/40 cursor-pointer"
             }`}
-            onClick={() => !isExpired && setIsModalOpen(true)}
+            onClick={() => !isDelisted && setIsModalOpen(true)}
           >
             <CardHeader className="pb-3">
               <div className="flex flex-wrap justify-between items-start gap-2">
-                <h3 className={`font-semibold text-lg ${isExpired ? "text-white/60" : "text-white"}`}>
+                <h3 className={`font-semibold text-lg ${isDelisted ? "text-white/60" : "text-white"}`}>
                   {proposal.title}
                 </h3>
-                {voteNft && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div
-                          whileHover={{ rotateZ: 10, scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          <Avatar className="h-8 w-8 ring-2 ring-blue-500/80 shadow-[0_0_15px_5px_rgba(59,130,246,0.3)]">
-                            <AvatarImage src={voteNft.url} alt="Vote NFT" />
-                            <AvatarFallback>V</AvatarFallback>
-                          </Avatar>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>You have voted on this proposal</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant="outline" 
+                    className={`${isDelisted ? 'bg-white/10 text-white/70' : 'bg-blue-900/30 text-blue-300'} border-white/20`}
+                  >
+                    {timeRemaining}
+                  </Badge>
+                  {voteNft && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <motion.div
+                            whileHover={{ rotateZ: 10, scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Avatar className="h-8 w-8 ring-2 ring-blue-500/80 shadow-[0_0_15px_5px_rgba(59,130,246,0.3)]">
+                              <AvatarImage src={voteNft.url} alt="Vote NFT" />
+                              <AvatarFallback>V</AvatarFallback>
+                            </Avatar>
+                          </motion.div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>You have voted on this proposal</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </div>
-              <p className={`text-sm ${isExpired ? "text-white/50" : "text-white/70"}`}>
+              <p className={`text-sm ${isDelisted ? "text-white/50" : "text-white/70"}`}>
                 {proposal.description}
               </p>
             </CardHeader>
@@ -238,125 +248,53 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 >
                   {yesPercentage > 10 && (
                     <motion.div 
-                      initial={{ x: "-100%" }}
-                      animate={{ x: "100%" }}
-                      transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                      className="absolute inset-0 w-full h-full"
-                      style={{
-                        background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%)",
-                        width: "50%"
-                      }}
-                    />
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-white"
+                    >
+                      {yesPercentage.toFixed(1)}%
+                    </motion.div>
                   )}
                 </motion.div>
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${100 - yesPercentage}%` }}
-                  transition={{ duration: 1.2, type: "spring", stiffness: 40 }}
-                  className="h-full absolute top-0 right-0 overflow-hidden"
-                  style={{
-                    background: "linear-gradient(90deg, rgba(248,113,113,0.9) 0%, rgba(239,68,68,0.7) 100%)",
-                    boxShadow: "0 0 10px rgba(248,113,113,0.5)",
-                    width: `${100 - yesPercentage}%`
-                  }}
-                >
-                  {(100 - yesPercentage) > 10 && (
-                    <motion.div 
-                      initial={{ x: "-100%" }}
-                      animate={{ x: "100%" }}
-                      transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                      className="absolute inset-0 w-full h-full"
-                      style={{
-                        background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%)",
-                        width: "50%"
-                      }}
-                    />
-                  )}
-                </motion.div>
-                {/* Vote percentages */}
-                <div className="absolute inset-0 flex justify-between items-center px-3 text-xs font-medium">
-                  {yesPercentage > 5 && (
-                    <div className="text-white drop-shadow-md z-10">{yesPercentage.toFixed(1)}%</div>
-                  )}
-                  {(100 - yesPercentage) > 5 && (
-                    <div className="text-white drop-shadow-md ml-auto z-10">{(100 - yesPercentage).toFixed(1)}%</div>
-                  )}
-                </div>
               </div>
-              
-              <div className="flex flex-wrap justify-between items-center gap-2">
-                <div className="flex gap-6">
-                  <motion.div 
-                    whileHover={{ scale: 1.1, y: -3 }}
-                    transition={{ type: "spring", stiffness: 400 }}
-                    className="flex items-center gap-1.5 text-green-400"
-                  >
-                    <div className="relative">
-                      <ThumbsUp size={18} />
-                      <AnimatePresence>
-                        {isActive && (
-                          <motion.div
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: [1.5, 1], opacity: [0.5, 0] }}
-                            exit={{ opacity: 0 }}
-                            transition={{ 
-                              repeat: Infinity, 
-                              duration: 1.5, 
-                              repeatDelay: 8,
-                              repeatType: "mirror"
-                            }}
-                            className="absolute inset-0 bg-green-400 rounded-full -z-10"
-                          />
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <span className="font-medium">{proposal.votedYesCount}</span>
-                  </motion.div>
-                  <motion.div 
-                    whileHover={{ scale: 1.1, y: -3 }}
-                    transition={{ type: "spring", stiffness: 400 }}
-                    className="flex items-center gap-1.5 text-red-400"
-                  >
-                    <div className="relative">
-                      <ThumbsDown size={18} />
-                      <AnimatePresence>
-                        {isActive && (
-                          <motion.div
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: [1.5, 1], opacity: [0.5, 0] }}
-                            exit={{ opacity: 0 }}
-                            transition={{ 
-                              repeat: Infinity, 
-                              duration: 1.5, 
-                              repeatDelay: 8,
-                              repeatType: "mirror",
-                              delay: 4
-                            }}
-                            className="absolute inset-0 bg-red-400 rounded-full -z-10"
-                          />
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <span className="font-medium">{proposal.votedNoCount}</span>
-                  </motion.div>
+
+              {/* Detailed Statistics Section */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">Yes Votes</span>
+                    <span className="font-medium text-green-400">{proposal.votedYesCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">No Votes</span>
+                    <span className="font-medium text-red-400">{proposal.votedNoCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">Total Votes</span>
+                    <span className="font-medium text-white">{totalVotes}</span>
+                  </div>
                 </div>
-                
-                {isExpired ? (
-                  <Badge 
-                    variant={isDelisted ? "destructive" : "secondary"} 
-                    className={`text-xs ${isDelisted ? 'bg-red-800/30 text-red-200' : 'bg-amber-800/30 text-amber-200'} hover:bg-white/15 shadow-[0_2px_5px_rgba(0,0,0,0.2)]`}
-                  >
-                    {isDelisted ? "Delisted" : "Expired"}
-                  </Badge>
-                ) : (
-                  <motion.div 
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    className="flex items-center gap-1.5 text-blue-300 text-xs bg-blue-900/30 px-2.5 py-1 rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.2)]"
-                  >
-                    <Clock size={14} />
-                    <span>{formatTimeRemaining(expiration)}</span>
-                  </motion.div>
-                )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">Created</span>
+                    <span className="font-medium text-white">
+                      {new Date(proposal.expiration - 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">Status</span>
+                    <span className={`font-medium ${isDelisted ? 'text-amber-400' : 'text-green-400'}`}>
+                      {proposal.status.variant}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/60">Voter Turnout</span>
+                    <span className="font-medium text-white">
+                      {totalVotes > 0 ? ((totalVotes / 1000) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                </div>
               </div>
             </CardContent>
             
@@ -368,6 +306,12 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 >
                   {formatStatus(proposal.status.variant)}
                 </Badge>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-blue-400" />
+                  <span className="text-sm text-blue-300">
+                    {new Date(Number(proposal.expiration)).toLocaleString()}
+                  </span>
+                </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -415,36 +359,13 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
 function parseProposal(data: SuiObjectData): Proposal | null {
   if (data.content?.dataType !== "moveObject") return null;
 
-  const { voted_yes_count, voted_no_count, expiration, ...rest } = data.content.fields as any;
+  const { voted_yes_count, voted_no_count, ...rest } = data.content.fields as any;
 
   return {
     ...rest,
     votedYesCount: Number(voted_yes_count),
-    votedNoCount: Number(voted_no_count),
-    expiration: Number(expiration)
+    votedNoCount: Number(voted_no_count)
   };
-}
-
-function isUnixTimeExpired(unixTimeMs: number) {
-  return new Date(unixTimeMs) < new Date();
-}
-
-function formatTimeRemaining(timestampMs: number) {
-  const now = new Date();
-  const expirationDate = new Date(timestampMs);
-  
-  if (expirationDate < now) return "Expired";
-  
-  const diffMs = expirationDate.getTime() - now.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  
-  if (diffDays > 0) {
-    return `${diffDays}d ${diffHours}h left`;
-  } else {
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${diffHours}h ${diffMinutes}m left`;
-  }
 }
 
 function formatStatus(status: string) {
