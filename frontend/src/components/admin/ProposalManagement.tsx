@@ -75,6 +75,7 @@ interface ProposalListItem {
   votedNoCount: number;
   expiration: number;
   status: string;
+  is_private: boolean;
 }
 
 interface ProposalManagementProps {
@@ -145,6 +146,7 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
           votedNoCount: Number(fields.voted_no_count),
           expiration: Number(fields.expiration),
           status: fields.status.variant,
+          is_private: fields.is_private,
         };
       })
       .filter(Boolean) as ProposalListItem[];
@@ -484,7 +486,14 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                       <TableRow key={proposal.id}>
                         <TableCell className="font-medium">
                           <div className="space-y-1">
-                            <div className="font-semibold">{proposal.title}</div>
+                            <div className="font-semibold flex items-center gap-2">
+                              {proposal.title}
+                              {proposal.is_private ? (
+                                <Badge className="bg-amber-600 text-white ml-2">Private</Badge>
+                              ) : (
+                                <Badge className="bg-blue-600 text-white ml-2">Public</Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground line-clamp-2">{proposal.description}</p>
                             <Button
                               size="sm"

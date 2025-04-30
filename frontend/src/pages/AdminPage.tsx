@@ -5,6 +5,7 @@ import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import ProposalManagement from "../components/admin/ProposalManagement";
 import SuperAdminManagement from "../components/admin/SuperAdminManagement";
 import CreateProposal from "../components/admin/CreateProposal";
+import VoterRegistry from "../components/admin/VoterRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -284,6 +285,14 @@ export const AdminPage: FC = () => {
             >
               <FileText className="mr-2 h-4 w-4" />
               Create Proposal
+            </Button>
+            <Button 
+              variant={activeTab === "voter_registry" ? "default" : "ghost"}
+              className={activeTab === "voter_registry" ? "bg-amber-600" : "hover:bg-amber-900/30"}
+              onClick={() => setActiveTab("voter_registry")}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Voter Registry
             </Button>
             {hasSuperAdminCap && (
               <Button 
@@ -615,6 +624,17 @@ export const AdminPage: FC = () => {
                 <CreateProposal />
               </motion.div>
             )}
+            
+            {activeTab === "voter_registry" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <VoterRegistry />
+              </motion.div>
+            )}
 
             {activeTab === "super_admin" && hasSuperAdminCap && (
               <motion.div
@@ -633,4 +653,4 @@ export const AdminPage: FC = () => {
   );
 };
 
-export default AdminPage; 
+export default AdminPage;

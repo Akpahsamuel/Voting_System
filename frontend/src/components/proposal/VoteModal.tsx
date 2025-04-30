@@ -1,6 +1,6 @@
 import { FC, useRef, useState } from "react";
 import { Proposal } from "../../types";
-import { ConnectButton, useCurrentWallet, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentWallet, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { Transaction } from "@mysten/sui/transactions";
 import { toast } from "react-toastify";
@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ThumbsUp, ThumbsDown, ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 
 interface VoteModalProps {
   proposal: Proposal;
@@ -38,9 +39,11 @@ export const VoteModal: FC<VoteModalProps> = ({
   onVote,
 }) => {
   const { connectionStatus } = useCurrentWallet();
+  const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
   const { mutate: signAndExecute, isPending, isSuccess, reset } = useSignAndExecuteTransaction();
   const packageId = useNetworkVariable("packageId");
+  const dashboardId = useNetworkVariable("dashboardId");
   const toastId = useRef<number | string>();
   const [latestTxDigest, setLatestTxDigest] = useState<string | null>(null);
 
@@ -58,8 +61,9 @@ export const VoteModal: FC<VoteModalProps> = ({
     tx.moveCall({
       arguments: [
         tx.object(proposal.id.id),
+        tx.object(dashboardId),
         tx.pure.bool(voteYes),
-        tx.object("0x6")
+        tx.object(SUI_CLOCK_OBJECT_ID)
       ],
       target: `${packageId}::proposal::vote`
     });

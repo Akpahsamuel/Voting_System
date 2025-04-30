@@ -1,16 +1,19 @@
-
+// Package IDs for different networks
 export const TESTNET_PACKAGE_ID = "0x03e4c3bf9209dac9b695b6c8653f7a6e24ef4c927d9c6455c94ed7720d26b7f2";
-export const DEVNET_PACKAGE_ID = "0xfc3ebe0de448516d9e26334cd3ae9823774728ed5117070ac29fdd7413598de6";
-export const MAINNET_PACKAGE_ID = "0x234";
+export const DEVNET_PACKAGE_ID = "0xc265cdabba78c6337daa114f905cd47edea8ac2946399667a4e649dac96faa1c";
+export const MAINNET_PACKAGE_ID = "0x0"; // Replace with actual package ID when deploying to mainnet
 
+// Admin capability IDs
 export const TESTNET_ADMIN_CAP = "0xcb63dc0001886b054e6a4c320489ade258f0d4eee2e37006844ea40af905bd08";
-export const DEVNET_ADMIN_CAP = "";
+export const DEVNET_ADMIN_CAP = "0x789f104fc5ac966703dd3dd967e3942cb3721026b774a2129a7ebe7839e0f1d7";
 export const MAINNET_ADMIN_CAP = "0x234";
 
-export const TESTNET_SUPER_ADMIN_CAP = "5654";
-export const DEVNET_SUPER_ADMIN_CAP = "0x4fea5bb2bed87d9107981ddff69d6c3137a16c290e5c81cde651f538918cff5b";
+// Super admin capability IDs
+export const TESTNET_SUPER_ADMIN_CAP = "0x5654";
+export const DEVNET_SUPER_ADMIN_CAP = "0x789f104fc5ac966703dd3dd967e3942cb3721026b774a2129a7ebe7839e0f1d7";
 export const MAINNET_SUPER_ADMIN_CAP = "0x234";
 
-export const TESTNET_DASHBOARD_ID = "0xecdc75053593acd4a4f6b3e6e1a22f8f2c89bc1bbeeac4db19cce10c3544734e";
-export const DEVNET_DASHBOARD_ID = "0xbc1875ceee4f0cbd61ac88b350160fecd43d41d6433d66ea7da9c6270026badb";
-export const MAINNET_DASHBOARD_ID= "0x234";
+// Dashboard IDs - replace with actual IDs after deploying dashboard objects
+export const TESTNET_DASHBOARD_ID = "0x123"; // Replace with actual testnet dashboard ID
+export const DEVNET_DASHBOARD_ID = "0x0b8b5a7781988586edcf53631b89b783d245f572b908612d67aef7010a4b628c"; // Fixed devnet dashboard ID
+export const MAINNET_DASHBOARD_ID = "0x0"; // Replace with actual mainnet dashboard ID when deploying

@@ -206,27 +206,27 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                   >
                     {timeRemaining}
                   </Badge>
-                  {voteNft && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <motion.div
-                            whileHover={{ rotateZ: 10, scale: 1.1 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
-                            <Avatar className="h-8 w-8 ring-2 ring-blue-500/80 shadow-[0_0_15px_5px_rgba(59,130,246,0.3)]">
-                              <AvatarImage src={voteNft.url} alt="Vote NFT" />
-                              <AvatarFallback>V</AvatarFallback>
-                            </Avatar>
-                          </motion.div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>You have voted on this proposal</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
+                {voteNft && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <motion.div
+                          whileHover={{ rotateZ: 10, scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Avatar className="h-8 w-8 ring-2 ring-blue-500/80 shadow-[0_0_15px_5px_rgba(59,130,246,0.3)]">
+                            <AvatarImage src={voteNft.url} alt="Vote NFT" />
+                            <AvatarFallback>V</AvatarFallback>
+                          </Avatar>
+                        </motion.div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>You have voted on this proposal</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               </div>
               <p className={`text-sm ${isDelisted ? "text-white/50" : "text-white/70"}`}>
                 {proposal.description}
@@ -254,11 +254,11 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-white"
                     >
                       {yesPercentage.toFixed(1)}%
-                    </motion.div>
+                </motion.div>
                   )}
                 </motion.div>
               </div>
-
+              
               {/* Detailed Statistics Section */}
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="space-y-2">
@@ -287,13 +287,13 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                     <span className={`font-medium ${isDelisted ? 'text-amber-400' : 'text-green-400'}`}>
                       {proposal.status.variant}
                     </span>
-                  </div>
+                    </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-white/60">Voter Turnout</span>
                     <span className="font-medium text-white">
                       {totalVotes > 0 ? ((totalVotes / 1000) * 100).toFixed(1) : 0}%
                     </span>
-                  </div>
+                    </div>
                 </div>
               </div>
             </CardContent>
