@@ -1,4 +1,4 @@
-import { FC, useRef, useState } from "react";
+import { FC, useRef, useState, useEffect } from "react";
 import { Proposal } from "../../types";
 import { ConnectButton, useCurrentWallet, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../../config/networkConfig";
@@ -12,15 +12,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Card, CardContent } from "@/components/ui/card";
-import { ThumbsUp, ThumbsDown, ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+} from "../../components/ui/dialog";
+import { Button } from "../../components/ui/button";
+import { Progress } from "../../components/ui/progress";
+import { Badge } from "../../components/ui/badge";
+import { Separator } from "../../components/ui/separator";
+import { Card, CardContent } from "../../components/ui/card";
+import { ThumbsUp, ThumbsDown, ExternalLink, Loader2, CheckCircle2, AlertCircle, ClockIcon } from "lucide-react";
+import { cn } from "../../lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 
 interface VoteModalProps {
@@ -46,6 +46,71 @@ export const VoteModal: FC<VoteModalProps> = ({
   const dashboardId = useNetworkVariable("dashboardId");
   const toastId = useRef<number | string>();
   const [latestTxDigest, setLatestTxDigest] = useState<string | null>(null);
+  const [isExpired, setIsExpired] = useState(false);
+  const [isRegisteredVoter, setIsRegisteredVoter] = useState(true);
+  const [isChecking, setIsChecking] = useState(false);
+
+  // Check if proposal is expired
+  useEffect(() => {
+    const checkExpiration = async () => {
+      if (!proposal) return;
+      
+      try {
+        const currentTime = Date.now(); // Current time in milliseconds
+        setIsExpired(proposal.expiration < currentTime);
+      } catch (error) {
+        console.error("Error checking expiration:", error);
+      }
+    };
+
+    checkExpiration();
+  }, [proposal]);
+
+  // Check if the user is registered as a voter for private proposals
+  useEffect(() => {
+    const checkIfRegisteredVoter = async () => {
+      if (!currentAccount || !proposal || !proposal.isPrivate) return;
+      
+      setIsChecking(true);
+      try {
+        // Create a transaction to call the is_voter_registered_for_proposal function
+        const tx = new Transaction();
+        tx.moveCall({
+          target: `${packageId}::dashboard::is_voter_registered_for_proposal`,
+          arguments: [
+            tx.object(dashboardId),
+            tx.pure.id(proposal.id.id),
+            tx.pure.address(currentAccount.address),
+          ],
+        });
+        
+        // Execute the transaction in dev inspect mode
+        const result = await suiClient.devInspectTransactionBlock({
+          transactionBlock: tx.serialize(),
+          sender: currentAccount.address,
+        });
+
+        // Process the result
+        if (result.results && result.results[0] && result.results[0].returnValues) {
+          const returnValue = result.results[0].returnValues[0];
+          const isRegistered = returnValue === true || returnValue === 'true';
+          setIsRegisteredVoter(isRegistered);
+          console.log("Is registered voter:", isRegistered);
+        } else {
+          setIsRegisteredVoter(false);
+        }
+      } catch (error) {
+        console.error("Error checking voter registration:", error);
+        setIsRegisteredVoter(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    if (proposal?.isPrivate) {
+      checkIfRegisteredVoter();
+    }
+  }, [currentAccount, proposal, dashboardId, packageId, suiClient]);
 
   if (!isOpen) return null;
 
@@ -57,6 +122,17 @@ export const VoteModal: FC<VoteModalProps> = ({
   };
 
   const vote = (voteYes: boolean) => {
+    // Don't attempt to vote if expired or not registered
+    if (isExpired) {
+      toast.error("This proposal has expired and is no longer accepting votes.");
+      return;
+    }
+
+    if (proposal.isPrivate && !isRegisteredVoter) {
+      toast.error("You are not registered to vote on this private proposal.");
+      return;
+    }
+
     const tx = new Transaction();
     tx.moveCall({
       arguments: [
@@ -74,7 +150,18 @@ export const VoteModal: FC<VoteModalProps> = ({
     }, {
       onError: (error) => {
         console.error("Transaction error:", error);
-        dismissToast("Transaction Failed!");
+        
+        // Check for specific error messages
+        const errorMsg = error.toString().toLowerCase();
+        if (errorMsg.includes("proposal expired") || errorMsg.includes("eproposalexpired")) {
+          dismissToast("Error: Proposal has expired!");
+          setIsExpired(true);
+        } else if (errorMsg.includes("not registered") || errorMsg.includes("enotregisteredvoter")) {
+          dismissToast("Error: You're not registered to vote on this private proposal!");
+          setIsRegisteredVoter(false);
+        } else {
+          dismissToast("Transaction Failed!");
+        }
       },
       onSuccess: async ({ digest }) => {
         // Store the transaction digest for viewing on SuiScan
@@ -108,7 +195,7 @@ export const VoteModal: FC<VoteModalProps> = ({
     });
   };
 
-  const votingDisabled = hasVoted || isPending || isSuccess;
+  const votingDisabled = hasVoted || isPending || isSuccess || isExpired || (proposal.isPrivate && !isRegisteredVoter) || isChecking;
   
   // Calculate vote percentages for progress bar
   const totalVotes = proposal.votedYesCount + proposal.votedNoCount;
@@ -125,6 +212,11 @@ export const VoteModal: FC<VoteModalProps> = ({
                 <CheckCircle2 size={14} />
                 <span>Voted</span>
               </Badge>
+            ) : isExpired ? (
+              <Badge variant="destructive" className="gap-1">
+                <ClockIcon size={14} />
+                <span>Expired</span>
+              </Badge>
             ) : (
               <Badge variant="outline" className="gap-1">
                 <AlertCircle size={14} />
@@ -138,6 +230,27 @@ export const VoteModal: FC<VoteModalProps> = ({
         </DialogHeader>
 
         <div className="py-4">
+          {/* Validation alerts */}
+          {isExpired && (
+            <Alert className="mb-4 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/20">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertTitle className="text-amber-700 dark:text-amber-300">Proposal Expired</AlertTitle>
+              <AlertDescription className="text-amber-600 dark:text-amber-400 text-sm">
+                This proposal has reached its end date and is no longer accepting votes.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {proposal.isPrivate && !isRegisteredVoter && !isChecking && (
+            <Alert className="mb-4 border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20">
+              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <AlertTitle className="text-red-700 dark:text-red-300">Not Registered</AlertTitle>
+              <AlertDescription className="text-red-600 dark:text-red-400 text-sm">
+                You are not registered to vote on this private proposal. Contact an admin to get registered.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="mb-6">
             {/* Vote Stats Card */}
             <Card className="mb-4 bg-gray-50 dark:bg-gray-800/50">
@@ -180,6 +293,12 @@ export const VoteModal: FC<VoteModalProps> = ({
                       style={{ width: `${100 - yesPercentage}%` }}
                     />
                   </div>
+                </div>
+
+                {/* Show expiration date */}
+                <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                  <ClockIcon size={14} className="mr-1" />
+                  <span>Expires: {new Date(proposal.expiration).toLocaleString()}</span>
                 </div>
               </CardContent>
             </Card>
@@ -251,21 +370,9 @@ export const VoteModal: FC<VoteModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex justify-center py-2">
-              <ConnectButton connectText="Connect to Vote" />
-            </div>
+            <ConnectButton className="w-full" />
           )}
         </div>
-
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="w-full border border-gray-200 dark:border-gray-700"
-          >
-            Close
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

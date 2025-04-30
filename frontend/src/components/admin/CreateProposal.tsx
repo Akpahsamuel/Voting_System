@@ -186,7 +186,7 @@ const CreateProposal = () => {
         
         <CardContent>
           <Form {...form}>
-            <div className="space-y-6">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="title"
@@ -311,7 +311,7 @@ const CreateProposal = () => {
                   )}
                 </Button>
               </div>
-            </div>
+            </form>
           </Form>
         </CardContent>
       </Card>
