@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
-import { useSignAndExecuteTransaction, useSuiClient, useSuiClientQuery } from "@mysten/dapp-kit";
+import React, { useState, useEffect } from "react";
+import { useSignAndExecuteTransaction, useSuiClient, useSuiClientQuery, useCurrentAccount } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { useNetworkVariable } from "../../config/networkConfig";
 import { useAdminCap } from "../../hooks/useAdminCap";
 import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
-import { SuiTransactionBlockResponse } from "@mysten/sui/client";
+import { useNetworkVariable } from "../../config/networkConfig";
 import { toast } from "sonner";
 import { Loader2, PlusCircle, XCircle, Search, RefreshCw } from "lucide-react";
 
@@ -13,7 +12,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { Badge } from "../ui/badge";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 
@@ -37,6 +35,8 @@ const VoterRegistry = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoadingProposals, setIsLoadingProposals] = useState(true);
   const [isLoadingVoters, setIsLoadingVoters] = useState(false);
+  const [voterRemovalHistory, setVoterRemovalHistory] = useState<Array<{address: string, timestamp: number}>>([]);
+  const [voterRegistrationHistory, setVoterRegistrationHistory] = useState<Array<{address: string, timestamp: number}>>([]);
 
   // Use type assertion to handle the network variables
   const packageId = useNetworkVariable("packageId" as any) as string;
@@ -46,6 +46,7 @@ const VoterRegistry = () => {
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   
   const suiClient = useSuiClient();
+  const currentAccount = useCurrentAccount();
 
   // Query for dashboard data
   const { data: dashboardData, refetch: refetchDashboard } = useSuiClientQuery('getObject', {
@@ -64,6 +65,7 @@ const VoterRegistry = () => {
     try {
       // Get the dashboard content
       const dashboardContent = dashboardData.data.content;
+      console.log("Dashboard content:", dashboardContent);
       
       // Safely access private_proposals field
       let privateProposalIds: string[] = [];
@@ -72,21 +74,63 @@ const VoterRegistry = () => {
         // Access the private_proposals field using the correct path based on type
         // Use type assertion to avoid TypeScript errors
         const fields = dashboardContent.fields as Record<string, any>;
-        const privateProposalsField = fields.private_proposals;
+        console.log("Dashboard fields:", fields);
         
-        // In the Sui data model, VecSet is represented differently
-        if (privateProposalsField && typeof privateProposalsField === 'object') {
-          // Check different possible structures based on Sui's serialization
-          if ('fields' in privateProposalsField && privateProposalsField.fields) {
-            if (Array.isArray(privateProposalsField.fields.contents)) {
-              privateProposalIds = privateProposalsField.fields.contents;
-            } else if (Array.isArray(privateProposalsField.fields.items)) {
-              privateProposalIds = privateProposalsField.fields.items;
-            } else if (privateProposalsField.fields.vec && Array.isArray(privateProposalsField.fields.vec)) {
-              privateProposalIds = privateProposalsField.fields.vec;
+        // Try to find private_proposals field in different formats
+        if (fields.private_proposals) {
+          const privateProposalsField = fields.private_proposals;
+          console.log("Private proposals field:", privateProposalsField);
+          
+          // In the Sui data model, VecSet is represented differently
+          if (privateProposalsField && typeof privateProposalsField === 'object') {
+            // Check different possible structures based on Sui's serialization
+            if ('fields' in privateProposalsField && privateProposalsField.fields) {
+              if (Array.isArray(privateProposalsField.fields.contents)) {
+                privateProposalIds = privateProposalsField.fields.contents;
+              } else if (Array.isArray(privateProposalsField.fields.items)) {
+                privateProposalIds = privateProposalsField.fields.items;
+              } else if (privateProposalsField.fields.vec && Array.isArray(privateProposalsField.fields.vec)) {
+                privateProposalIds = privateProposalsField.fields.vec;
+              }
+            } else if (Array.isArray(privateProposalsField)) {
+              privateProposalIds = privateProposalsField;
+            } else if (privateProposalsField.vec && Array.isArray(privateProposalsField.vec)) {
+              privateProposalIds = privateProposalsField.vec;
             }
-          } else if (Array.isArray(privateProposalsField)) {
-            privateProposalIds = privateProposalsField;
+          }
+        } else {
+          // Try to find all proposals and filter for private ones
+          console.log("No private_proposals field found, trying to get all proposals");
+          if (fields.proposals_ids && Array.isArray(fields.proposals_ids)) {
+            // We'll need to check each proposal to see if it's private
+            const allProposalIds = fields.proposals_ids;
+            console.log("All proposal IDs:", allProposalIds);
+            
+            // Fetch each proposal to check if it's private
+            const checkPromises = allProposalIds.map(async (id: string) => {
+              try {
+                const proposalObj = await suiClient.getObject({
+                  id,
+                  options: {
+                    showContent: true,
+                  }
+                });
+                
+                if (proposalObj.data?.content?.dataType === "moveObject") {
+                  const fields = proposalObj.data.content.fields as any;
+                  if (fields.is_private === true) {
+                    return id;
+                  }
+                }
+              } catch (error) {
+                console.error("Error checking if proposal is private:", error);
+              }
+              return null;
+            });
+            
+            const results = await Promise.all(checkPromises);
+            privateProposalIds = results.filter(id => id !== null) as string[];
+            console.log("Filtered private proposal IDs:", privateProposalIds);
           }
         }
       }
@@ -114,8 +158,8 @@ const VoterRegistry = () => {
             const fields = proposalObj.data.content.fields as any;
             privateProposals.push({
               id,
-              title: fields.title,
-              isPrivate: fields.is_private,
+              title: fields.title || "Untitled Proposal",
+              isPrivate: fields.is_private === true,
             });
           }
         } catch (error) {
@@ -143,75 +187,74 @@ const VoterRegistry = () => {
 
   // Fetch registered voters for a specific proposal
   const fetchRegisteredVoters = async (proposalId: string) => {
-    if (!suiClient) return;
-
+    if (!proposalId) return;
+    
     setIsLoadingVoters(true);
+    
     try {
-      // Build transaction to call get_registered_voters
-      const tx = new Transaction();
-      tx.moveCall({
-        target: `${packageId}::dashboard::get_registered_voters`,
-        arguments: [
-          tx.object(dashboardId),
-          tx.pure.id(proposalId),
-        ],
-      });
+      console.log(`Fetching registered voters for proposal: ${proposalId}`);
       
-      // Execute the transaction in dev inspect mode
-      const result = await suiClient.devInspectTransactionBlock({
-        transactionBlock: tx.serialize(),
-        sender: "0x0", // Doesn't matter for view functions
-      });
+      // Simplify our approach: go directly to dynamic field query
+      console.log("Querying voter registry using dynamic field");
+      try {
+        // Create the VoterRegistryKey structure
+        const registryKeyType = `${packageId}::dashboard::VoterRegistryKey`;
+        const registryKey = { 
+          proposal_id: proposalId 
+        };
 
-      console.log("Registered voters result:", result);
-
-      // Process the result
-      if (result.results && result.results[0] && result.results[0].returnValues) {
-        // Get the return value from the transaction result
-        const returnValue = result.results[0].returnValues[0];
-        console.log("Return value:", returnValue);
-        
-        // The return value structure might vary depending on the serialization
-        const voters: RegisteredVoter[] = [];
-        
-        try {
-          // Add explicit type assertions for safety
-          const anyReturnValue = returnValue as any;
-          
-          if (Array.isArray(anyReturnValue)) {
-            // Direct array of addresses
-            anyReturnValue.forEach((address: any) => {
-              if (address) {
-                voters.push({
-                  address: typeof address === 'string' ? address : String(address)
-                });
-              }
-            });
-          } else if (anyReturnValue[0] && Array.isArray(anyReturnValue[0])) {
-            // Nested array of addresses
-            anyReturnValue[0].forEach((address: any) => {
-              if (address) {
-                voters.push({
-                  address: typeof address === 'string' ? address : String(address)
-                });
-              }
-            });
+        // Get the dynamic field
+        const dynamicFieldResult = await suiClient.getDynamicFieldObject({
+          parentId: dashboardId,
+          name: {
+            type: registryKeyType,
+            value: registryKey
           }
-        } catch (e) {
-          console.error("Error parsing voter addresses:", e);
+        });
+
+        console.log("Dynamic field result:", JSON.stringify(dynamicFieldResult, null, 2));
+
+        // Extract voter addresses directly from the dynamic field result
+        if (dynamicFieldResult.data?.content?.dataType === "moveObject") {
+          const registryFields = dynamicFieldResult.data.content.fields as any;
+          console.log("Registry fields:", registryFields);
+          
+          // Check if we have the voter registry structure
+          if (registryFields.value && 
+              registryFields.value.fields && 
+              registryFields.value.fields.registered_voters && 
+              registryFields.value.fields.registered_voters.fields && 
+              registryFields.value.fields.registered_voters.fields.contents) {
+            
+            // Get the contents array which contains the voter addresses
+            const voterAddresses = registryFields.value.fields.registered_voters.fields.contents;
+            console.log("Voter addresses from dynamic field:", voterAddresses);
+            
+            if (Array.isArray(voterAddresses)) {
+              const voters = voterAddresses.map(addr => ({ address: String(addr) }));
+              console.log("Processed voters:", voters);
+              setRegisteredVoters(voters);
+              setIsLoadingVoters(false);
+              return;
+            }
+          }
         }
         
-        console.log("Processed voters:", voters);
-        setRegisteredVoters(voters);
-      } else {
-        console.log("No registered voters found or invalid result format");
+        // If we couldn't find the voter registry or it was empty
+        console.log("No registered voters found in dynamic field");
         setRegisteredVoters([]);
+        setIsLoadingVoters(false);
+        
+      } catch (error) {
+        console.error("Error querying dynamic field:", error);
+        toast.error("Failed to load registered voters");
+        setRegisteredVoters([]);
+        setIsLoadingVoters(false);
       }
     } catch (error) {
       console.error("Error fetching registered voters:", error);
       toast.error("Failed to load registered voters");
       setRegisteredVoters([]);
-    } finally {
       setIsLoadingVoters(false);
     }
   };
@@ -234,6 +277,9 @@ const VoterRegistry = () => {
     
     setIsLoading(true);
     try {
+      // Show a toast to indicate the process is starting
+      toast.info(`Registering voter ${newVoterAddress}...`);
+
       // Determine which function to call based on admin status
       const functionName = hasSuperAdminCap 
         ? "register_voter_for_private_proposal_super" 
@@ -268,29 +314,63 @@ const VoterRegistry = () => {
         return;
       }
       
-      // Execute the transaction - fix compatible with dapp-kit SDK
+      // Log the transaction details for debugging
+      console.log("Register transaction details:", {
+        packageId,
+        dashboardId,
+        proposalId: selectedProposal.id,
+        voterAddress: newVoterAddress,
+        functionName,
+        capId: hasSuperAdminCap ? superAdminCapId : adminCapId
+      });
+      
+      const serializedTx = tx.serialize();
+      console.log("Serialized transaction:", serializedTx);
+      
+      // Execute the transaction with proper serialization
       signAndExecute(
         {
-          transaction: tx as any,
+          transaction: serializedTx,
         },
         {
           onSuccess: (result) => {
+            console.log("Register success:", result);
             toast.success(`Voter ${newVoterAddress} registered successfully`);
+            
+            // Add to registration history
+            setVoterRegistrationHistory(prev => [
+              { address: newVoterAddress, timestamp: Date.now() },
+              ...prev
+            ]);
+            
             setNewVoterAddress("");
             setIsAddVoterModalOpen(false);
-            // Refresh the list of registered voters
-            fetchRegisteredVoters(selectedProposal.id);
+            
+            // Add a small delay before refreshing to allow blockchain state to update
+            setTimeout(() => {
+              // Refresh the list of registered voters
+              fetchRegisteredVoters(selectedProposal.id);
+              setIsLoading(false);
+            }, 2000); // 2 second delay
           },
           onError: (error) => {
             console.error("Error registering voter:", error);
-            toast.error("Failed to register voter");
+            
+            // Check for specific error messages
+            const errorMsg = error.message || 'Unknown error';
+            if (errorMsg.toLowerCase().includes('already registered')) {
+              toast.error(`Voter ${newVoterAddress} is already registered for this proposal`);
+            } else {
+              toast.error(`Failed to register voter: ${errorMsg}`);
+            }
+            
+            setIsLoading(false);
           },
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error registering voter:", error);
-      toast.error("Failed to register voter");
-    } finally {
+      toast.error(`Failed to register voter: ${error.message || 'Unknown error'}`);
       setIsLoading(false);
     }
   };
@@ -301,15 +381,21 @@ const VoterRegistry = () => {
     
     setIsLoading(true);
     try {
+      // Show a toast to indicate the process is starting
+      toast.info(`Removing voter ${voterAddress}...`);
+      
       // Determine which function to call based on admin status
       const functionName = hasSuperAdminCap 
-        ? "unregister_voter_for_private_proposal_super" 
-        : "unregister_voter_for_private_proposal";
+        ? "unregister_voter_from_private_proposal_super" 
+        : "unregister_voter_from_private_proposal";
+      
+      console.log(`Using function: ${functionName}`);
       
       const tx = new Transaction();
       
       // Add the appropriate cap as the first argument
       if (hasSuperAdminCap && superAdminCapId) {
+        console.log(`Using SuperAdminCap: ${superAdminCapId}`);
         tx.moveCall({
           target: `${packageId}::dashboard::${functionName}`,
           arguments: [
@@ -320,6 +406,7 @@ const VoterRegistry = () => {
           ],
         });
       } else if (hasAdminCap && adminCapId) {
+        console.log(`Using AdminCap: ${adminCapId}`);
         tx.moveCall({
           target: `${packageId}::dashboard::${functionName}`,
           arguments: [
@@ -330,32 +417,69 @@ const VoterRegistry = () => {
           ],
         });
       } else {
+        console.error("No admin capabilities available");
         toast.error("You don't have the required admin permissions");
         setIsLoading(false);
         return;
       }
       
-      // Execute the transaction - fix compatible with dapp-kit SDK
+      // Log the transaction details for debugging
+      console.log("Unregister transaction details:", {
+        packageId,
+        dashboardId,
+        proposalId: selectedProposal.id,
+        voterAddress,
+        functionName,
+        capId: hasSuperAdminCap ? superAdminCapId : adminCapId,
+        fullTarget: `${packageId}::dashboard::${functionName}`
+      });
+      
+      const serializedTx = tx.serialize();
+      console.log("Serialized transaction:", serializedTx);
+      
+      // Execute the transaction with proper serialization
       signAndExecute(
         {
-          transaction: tx as any,
+          transaction: serializedTx,
         },
         {
           onSuccess: (result) => {
+            console.log("Unregister success:", result);
             toast.success(`Voter ${voterAddress} unregistered successfully`);
-            // Refresh the list of registered voters
-            fetchRegisteredVoters(selectedProposal.id);
+            
+            // Add to removal history
+            setVoterRemovalHistory(prev => [
+              { address: voterAddress, timestamp: Date.now() },
+              ...prev
+            ]);
+            
+            // Add a small delay before refreshing to allow blockchain state to update
+            setTimeout(() => {
+              // Refresh the list of registered voters
+              fetchRegisteredVoters(selectedProposal.id);
+              setIsLoading(false);
+            }, 2000); // 2 second delay
           },
           onError: (error) => {
             console.error("Error unregistering voter:", error);
-            toast.error("Failed to unregister voter");
+            
+            // Check for specific error messages
+            const errorMsg = error.message || 'Unknown error';
+            console.log("Error message:", errorMsg);
+            
+            if (errorMsg.toLowerCase().includes('not found') || errorMsg.toLowerCase().includes('not registered')) {
+              toast.error(`Voter ${voterAddress} is not registered for this proposal`);
+            } else {
+              toast.error(`Failed to unregister voter: ${errorMsg}`);
+            }
+            
+            setIsLoading(false);
           },
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error unregistering voter:", error);
-      toast.error("Failed to unregister voter");
-    } finally {
+      toast.error(`Failed to unregister voter: ${error.message || 'Unknown error'}`);
       setIsLoading(false);
     }
   };
@@ -372,6 +496,51 @@ const VoterRegistry = () => {
   const filteredProposals = proposals.filter(proposal => 
     proposal.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Load history from localStorage when component mounts
+  useEffect(() => {
+    try {
+      const savedRegistrationHistory = localStorage.getItem(`voter_registration_history_${selectedProposal?.id}`);
+      if (savedRegistrationHistory) {
+        setVoterRegistrationHistory(JSON.parse(savedRegistrationHistory));
+      }
+      
+      const savedRemovalHistory = localStorage.getItem(`voter_removal_history_${selectedProposal?.id}`);
+      if (savedRemovalHistory) {
+        setVoterRemovalHistory(JSON.parse(savedRemovalHistory));
+      }
+    } catch (error) {
+      console.error("Error loading voter history from localStorage:", error);
+    }
+  }, [selectedProposal?.id]);
+
+  // Save registration history to localStorage when it changes
+  useEffect(() => {
+    if (selectedProposal?.id && voterRegistrationHistory.length > 0) {
+      try {
+        localStorage.setItem(
+          `voter_registration_history_${selectedProposal.id}`, 
+          JSON.stringify(voterRegistrationHistory.slice(0, 20)) // Limit to 20 entries
+        );
+      } catch (error) {
+        console.error("Error saving registration history to localStorage:", error);
+      }
+    }
+  }, [voterRegistrationHistory, selectedProposal?.id]);
+
+  // Save removal history to localStorage when it changes
+  useEffect(() => {
+    if (selectedProposal?.id && voterRemovalHistory.length > 0) {
+      try {
+        localStorage.setItem(
+          `voter_removal_history_${selectedProposal.id}`, 
+          JSON.stringify(voterRemovalHistory.slice(0, 20)) // Limit to 20 entries
+        );
+      } catch (error) {
+        console.error("Error saving removal history to localStorage:", error);
+      }
+    }
+  }, [voterRemovalHistory, selectedProposal?.id]);
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto px-4 py-8">
@@ -521,6 +690,65 @@ const VoterRegistry = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Statistics Section */}
+      {selectedProposal && (
+        <Card className="border shadow-md mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Voter Registry Statistics</CardTitle>
+            <CardDescription>
+              Statistics about registered voters for this proposal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-muted/30 p-4 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Current Registered Voters</h4>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold">{registeredVoters.length}</span>
+                  <span className="text-sm text-muted-foreground">voters</span>
+                </div>
+              </div>
+              
+              <div className="bg-muted/30 p-4 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Recently Added Voters</h4>
+                <div>
+                  {voterRegistrationHistory.length === 0 ? (
+                    <span className="text-sm text-muted-foreground">No recent registrations</span>
+                  ) : (
+                    <div className="max-h-[100px] overflow-y-auto space-y-2">
+                      {voterRegistrationHistory.slice(0, 5).map((item, index) => (
+                        <div key={index} className="text-xs bg-background/40 p-2 rounded flex justify-between">
+                          <span className="font-mono">{item.address.substring(0, 10)}...{item.address.substring(item.address.length - 6)}</span>
+                          <span className="text-muted-foreground">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-muted/30 p-4 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Recently Removed Voters</h4>
+                <div>
+                  {voterRemovalHistory.length === 0 ? (
+                    <span className="text-sm text-muted-foreground">No voters have been removed</span>
+                  ) : (
+                    <div className="max-h-[100px] overflow-y-auto space-y-2">
+                      {voterRemovalHistory.slice(0, 5).map((item, index) => (
+                        <div key={index} className="text-xs bg-background/40 p-2 rounded flex justify-between">
+                          <span className="font-mono">{item.address.substring(0, 10)}...{item.address.substring(item.address.length - 6)}</span>
+                          <span className="text-muted-foreground">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add Voter Dialog */}
       <Dialog open={isAddVoterModalOpen} onOpenChange={setIsAddVoterModalOpen}>

@@ -73,6 +73,9 @@ const CreateProposal = () => {
     try {
       setIsLoading(true);
       
+      // Indicate to the user that the transaction is being processed
+      toast.info("Creating proposal, please wait...");
+      
       // Calculate the expiration timestamp (in milliseconds)
       const expirationMs = values.expiration.getTime();
       
@@ -113,31 +116,33 @@ const CreateProposal = () => {
 
       console.log("Transaction block built:", txb);
       
+      // Reset loading state after a timeout to prevent UI from being stuck
+      const loadingTimeout = setTimeout(() => {
+        if (setIsLoading) setIsLoading(false);
+      }, 10000); // 10 seconds timeout as a fallback
+      
       // Use the signAndExecute function without await to prevent form submission from continuing
-      signAndExecute({
-        transaction: txb,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
+      signAndExecute(
+        {
+          transaction: txb.serialize(), // Serialize the transaction to fix the type issue
         },
-        onSuccess: (result: SuiTransactionBlockResponse) => {
-          console.log("Transaction success, digest:", result.digest);
-          toast.success("Proposal created successfully!");
-          form.reset();
-          setIsPrivate(false);
-          setIsLoading(false);
-          
-          // Add a small delay before allowing new submissions
-          setTimeout(() => {
+        {
+          onSuccess: (result) => {
+            clearTimeout(loadingTimeout);
+            console.log("Transaction success, digest:", result.digest);
+            toast.success("Proposal created successfully!");
+            form.reset();
+            setIsPrivate(false);
             setIsLoading(false);
-          }, 1000);
-        },
-        onError: (error: Error) => {
-          console.error("Transaction error:", error);
-          toast.error(`Failed to create proposal: ${error.message}`);
-          setIsLoading(false);
-        },
-      });
+          },
+          onError: (error: Error) => {
+            clearTimeout(loadingTimeout);
+            console.error("Transaction error:", error);
+            toast.error(`Failed to create proposal: ${error.message}`);
+            setIsLoading(false);
+          },
+        }
+      );
       
       // Return early to prevent form submission from continuing
       return false;

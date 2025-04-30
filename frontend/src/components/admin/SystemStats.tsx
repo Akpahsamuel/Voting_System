@@ -15,12 +15,12 @@ import {
   Legend,
 } from 'chart.js';
 import { Pie, Line, Bar } from 'react-chartjs-2';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { Progress } from "../ui/progress";
+import { Badge } from "../ui/badge";
+import { ScrollArea } from "../ui/scroll-area";
+import { Separator } from "../ui/separator";
 import { motion } from "framer-motion";
 import { 
   ChevronRight, 
@@ -57,8 +57,8 @@ interface ProposalData {
 }
 
 const SystemStats = () => {
-  const dashboardId = useNetworkVariable("dashboardId");
-  const packageId = useNetworkVariable("packageId");
+  const dashboardId = useNetworkVariable("dashboardId" as any); ;
+  const packageId = useNetworkVariable("packageId" as any); ;
   const [proposals, setProposals] = useState<ProposalData[]>([]);
   const [selectedView, setSelectedView] = useState<'overview' | 'detailed'>('overview');
   

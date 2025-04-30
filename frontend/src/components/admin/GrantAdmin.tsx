@@ -40,8 +40,8 @@ const GrantAdmin = () => {
   // New state to control dropdown open/closed state
   const [dropdownOpen, setDropdownOpen] = useState(false);
   
-  const packageId = useNetworkVariable("packageId");
-  const dashboardId = useNetworkVariable("dashboardId");
+  const packageId = useNetworkVariable("packageId" as any);
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const { adminCapId } = useAdminCap();
   const { hasSuperAdminCap, superAdminCapId } = useSuperAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
