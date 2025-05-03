@@ -17,6 +17,7 @@ import StatisticsView from "./views/StatisticsView";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import AdminDebug from "./pages/AdminDebug";
 import VotingPage from "./pages/ballot";
+import BallotPage from "./pages/BallotPage";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,10 @@ const router = createBrowserRouter([
   {
     path: "/proposal",
     element: <ProposalView />,
+  },
+  {
+    path: "/ballot",
+    element: <BallotPage />,
   },
   {
     path: "/wallet",
