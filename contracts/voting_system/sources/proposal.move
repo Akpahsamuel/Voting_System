@@ -18,6 +18,7 @@ const ENotRegisteredVoter: u64 = 7;
 public enum ProposalStatus has store, drop {
     Active,
     Delisted,
+    Expired,
 }
 
 public struct Proposal has key {
@@ -49,8 +50,25 @@ public struct VoteRegistered has copy, drop {
 
 // === Public Functions ===
 
+/// Check if a proposal is expired based on current time
+public fun is_expired(self: &Proposal, clock: &Clock): bool {
+    self.expiration <= clock.timestamp_ms()
+}
+
+/// Update proposal status based on expiration time
+public fun update_status_based_on_time(self: &mut Proposal, clock: &Clock) {
+    // Only update status if it's currently Active and has expired
+    if (self.is_active() && is_expired(self, clock)) {
+        self.status = ProposalStatus::Expired;
+    }
+}
+
 public fun vote(self: &mut Proposal, dashboard: &Dashboard, vote_yes: bool, clock: &Clock, ctx: &mut TxContext) {
-    assert!(self.expiration > clock.timestamp_ms(), EProposalExpired);
+    // Update status based on current time before checking
+    update_status_based_on_time(self, clock);
+    
+    // Now check if expired - this will fail if status was updated to Expired
+    assert!(!is_expired(self, clock), EProposalExpired);
     assert!(self.is_active(), EProposalDelisted);
     assert!(!self.voters.contains(tx_context::sender(ctx)), EDuplicateVote);
 
@@ -92,7 +110,8 @@ public fun is_active(self: &Proposal): bool {
 
     match (status) {
         ProposalStatus::Active => true,
-        _ => false,
+        ProposalStatus::Expired => false,
+        ProposalStatus::Delisted => false,
     }
 }
 
@@ -168,6 +187,12 @@ public fun change_expiration_date(
     new_expiration: u64
 ) {
     self.expiration = new_expiration;
+}
+
+/// Public entry function to check and update a proposal's status based on current time
+/// This can be called by anyone to ensure proposal status is up-to-date
+public entry fun check_and_update_proposal_status(self: &mut Proposal, clock: &Clock) {
+    update_status_based_on_time(self, clock);
 }
 
 /// Create a new proposal using SuperAdminCap

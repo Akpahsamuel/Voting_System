@@ -144,9 +144,17 @@ export const StatisticsPanel = () => {
   };
 
   // Proposal status data for pie chart
-  const activeProposals = proposals.filter((p) => p.status === "Active").length;
-  const expiredProposals = proposals.filter((p) => p.status === "Expired").length;
-  const delistedProposals = proposals.filter((p) => p.status === "Delisted").length;
+  // The contract now has an explicit Expired status
+  const activeProposals = filteredProposals.filter((p) => p.status === "Active").length;
+  const expiredProposals = filteredProposals.filter((p) => p.status === "Expired").length;
+  const delistedProposals = filteredProposals.filter((p) => p.status === "Delisted").length;
+  
+  console.log("Statistics - Proposals by status:", { 
+    active: activeProposals, 
+    expired: expiredProposals, 
+    delisted: delistedProposals, 
+    total: filteredProposals.length 
+  });
 
   const proposalStatusData = {
     labels: ["Active", "Expired", "Delisted"],

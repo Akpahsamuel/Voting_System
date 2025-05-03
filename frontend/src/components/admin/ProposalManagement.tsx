@@ -508,14 +508,18 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                         </TableCell>
                         <TableCell>
                           <Badge 
-                            variant={proposal.status === "Active" ? "default" : "secondary"}
+                            variant={proposal.status === "Active" ? "default" : proposal.status === "Expired" ? "outline" : "secondary"}
                             className={proposal.status === "Active" 
                               ? "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400" 
-                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                              : proposal.status === "Expired"
+                                ? "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-900/30 dark:text-gray-400"
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
                             }
                           >
                             {proposal.status === "Active" ? (
                               <CheckCircle className="mr-1 h-3 w-3" />
+                            ) : proposal.status === "Expired" ? (
+                              <Clock className="mr-1 h-3 w-3" />
                             ) : (
                               <Ban className="mr-1 h-3 w-3" />
                             )}
@@ -697,6 +701,23 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                                     >
                                       <Ban className="mr-2 h-4 w-4" />
                                       Delist Proposal
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : proposal.status === "Expired" ? (
+                                  <>
+                                    <DropdownMenuItem 
+                                      onClick={() => setExpirationModalOpen(proposal.id)}
+                                      className="text-blue-600 dark:text-blue-400"
+                                    >
+                                      <Clock className="mr-2 h-4 w-4" />
+                                      Change Expiration
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleActivate(proposal.id)}
+                                      className="text-green-600 dark:text-green-400"
+                                    >
+                                      <Check className="mr-2 h-4 w-4" />
+                                      Activate Proposal
                                     </DropdownMenuItem>
                                   </>
                                 ) : (
