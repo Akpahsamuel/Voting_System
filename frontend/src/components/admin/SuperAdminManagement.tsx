@@ -55,8 +55,8 @@ const SuperAdminManagement: React.FC<SuperAdminManagementProps> = ({ superAdminC
   const [adminCapabilities, setAdminCapabilities] = useState<{address: string, capId: string}[]>([]);
   const [isLoadingCapabilities, setIsLoadingCapabilities] = useState<boolean>(false);
   
-  const packageId = useNetworkVariable("packageId");
-  const dashboardId = useNetworkVariable("dashboardId");
+  const packageId = useNetworkVariable("packageId" as any);
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const suiClient = useSuiClient();
 

@@ -18,7 +18,8 @@ import {
   MoreHorizontal, 
   Trash2, 
   Ban, 
-  CheckCircle
+  CheckCircle,
+  Clock
 } from "lucide-react";
 
 // Import shadcn components
@@ -54,6 +55,17 @@ import {
 } from "../../components/ui/alert-dialog";
 import { Progress } from "../../components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { Label } from "../../components/ui/label";
+import { Input } from "../../components/ui/input";
+import { motion } from "framer-motion";
 
 interface ProposalListItem {
   id: string;
@@ -63,6 +75,7 @@ interface ProposalListItem {
   votedNoCount: number;
   expiration: number;
   status: string;
+  is_private: boolean;
 }
 
 interface ProposalManagementProps {
@@ -79,6 +92,8 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
   const [loading, setLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [lastTxDigest, setLastTxDigest] = useState<{ id: string; digest: string } | null>(null);
+  const [expirationModalOpen, setExpirationModalOpen] = useState<string | null>(null);
+  const [newExpiration, setNewExpiration] = useState<string>("");
 
   // Log available capabilities
   useEffect(() => {
@@ -131,6 +146,7 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
           votedNoCount: Number(fields.voted_no_count),
           expiration: Number(fields.expiration),
           status: fields.status.variant,
+          is_private: fields.is_private,
         };
       })
       .filter(Boolean) as ProposalListItem[];
@@ -333,6 +349,64 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
     }
   };
 
+  const handleChangeExpiration = async (proposalId: string) => {
+    if (!newExpiration) return;
+    
+    const newExpirationMs = new Date(newExpiration).getTime();
+    
+    // First decide which capability and function to use
+    const capId = hasSuperAdminCap ? superAdminCapId : adminCapId;
+    const functionTarget = hasSuperAdminCap 
+      ? `${packageId}::proposal::change_expiration_date`
+      : `${packageId}::proposal::change_expiration_date`;
+      
+    if (!capId) {
+      toast.error("No admin capability found");
+      return;
+    }
+    
+    setLoading(proposalId);
+
+    try {
+      const tx = new Transaction();
+      
+      tx.moveCall({
+        target: functionTarget,
+        arguments: [
+          tx.object(proposalId),
+          tx.object(capId),
+          tx.pure.u64(newExpirationMs)
+        ],
+      });
+
+      await signAndExecute(
+        {
+          transaction: tx.serialize(),
+        },
+        {
+          onSuccess: async ({ digest }) => {
+            console.log("Change expiration transaction successful:", digest);
+            toast.success("Proposal expiration date changed successfully");
+            setLastTxDigest({ id: proposalId, digest });
+            await refetchDashboard();
+            setLoading(null);
+            setExpirationModalOpen(null);
+            setNewExpiration("");
+          },
+          onError: (error) => {
+            console.error("Change expiration transaction failed:", error);
+            toast.error(`Error changing expiration date: ${error.message}`);
+            setLoading(null);
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error("Error in change expiration transaction:", error);
+      toast.error(`Error: ${error.message || error}`);
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <Card className="border shadow-md bg-card">
@@ -412,7 +486,14 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                       <TableRow key={proposal.id}>
                         <TableCell className="font-medium">
                           <div className="space-y-1">
-                            <div className="font-semibold">{proposal.title}</div>
+                            <div className="font-semibold flex items-center gap-2">
+                              {proposal.title}
+                              {proposal.is_private ? (
+                                <Badge className="bg-amber-600 text-white ml-2">Private</Badge>
+                              ) : (
+                                <Badge className="bg-blue-600 text-white ml-2">Public</Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground line-clamp-2">{proposal.description}</p>
                             <Button
                               size="sm"
@@ -427,14 +508,18 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                         </TableCell>
                         <TableCell>
                           <Badge 
-                            variant={proposal.status === "Active" ? "default" : "secondary"}
+                            variant={proposal.status === "Active" ? "default" : proposal.status === "Expired" ? "outline" : "secondary"}
                             className={proposal.status === "Active" 
                               ? "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400" 
-                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                              : proposal.status === "Expired"
+                                ? "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-900/30 dark:text-gray-400"
+                                : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
                             }
                           >
                             {proposal.status === "Active" ? (
                               <CheckCircle className="mr-1 h-3 w-3" />
+                            ) : proposal.status === "Expired" ? (
+                              <Clock className="mr-1 h-3 w-3" />
                             ) : (
                               <Ban className="mr-1 h-3 w-3" />
                             )}
@@ -442,25 +527,129 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-green-600 dark:text-green-400">Yes: {proposal.votedYesCount}</span>
-                              <span className="text-red-600 dark:text-red-400">No: {proposal.votedNoCount}</span>
-                            </div>
-                            <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                              <div className="flex h-full">
-                                <div 
-                                  className="bg-green-500 dark:bg-green-600" 
-                                  style={{ width: `${yesPercentage}%` }}
-                                />
-                                <div 
-                                  className="bg-red-500 dark:bg-red-600" 
-                                  style={{ width: `${noPercentage}%` }}
-                                />
+                          <div className="space-y-3">
+                            {/* Vote Counts */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">Yes Votes</span>
+                                  <span className="font-medium text-green-400">{proposal.votedYesCount}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">No Votes</span>
+                                  <span className="font-medium text-red-400">{proposal.votedNoCount}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">Total Votes</span>
+                                  <span className="font-medium text-white">{totalVotes}</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">Yes %</span>
+                                  <span className="font-medium text-green-400">{yesPercentage.toFixed(1)}%</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">No %</span>
+                                  <span className="font-medium text-red-400">{noPercentage.toFixed(1)}%</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-white/60">Turnout</span>
+                                  <span className="font-medium text-white">
+                                    {totalVotes > 0 ? ((totalVotes / 1000) * 100).toFixed(1) : 0}%
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                            <div className="text-xs text-center text-muted-foreground">
-                              {totalVotes} total votes
+
+                            {/* Vote Progress Bar */}
+                            <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden relative shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${yesPercentage}%` }}
+                                transition={{ duration: 1.2, type: "spring", stiffness: 40 }}
+                                className="h-full relative overflow-hidden"
+                                style={{
+                                  background: "linear-gradient(90deg, rgba(74,222,128,0.7) 0%, rgba(34,197,94,0.9) 100%)",
+                                  boxShadow: "0 0 10px rgba(74,222,128,0.5)"
+                                }}
+                              >
+                                {yesPercentage > 10 && (
+                                  <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.5 }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-white"
+                                  >
+                                    {yesPercentage.toFixed(1)}%
+                                  </motion.div>
+                                )}
+                              </motion.div>
+                            </div>
+
+                            {/* Vote Distribution Chart */}
+                            <div className="relative h-24 w-full">
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="relative w-20 h-20">
+                                  {/* Background Circle */}
+                                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                                    <circle
+                                      cx="50"
+                                      cy="50"
+                                      r="45"
+                                      fill="none"
+                                      stroke="rgba(255,255,255,0.1)"
+                                      strokeWidth="10"
+                                    />
+                                  </svg>
+                                  
+                                  {/* Yes Votes Arc */}
+                                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+                                    <motion.circle
+                                      cx="50"
+                                      cy="50"
+                                      r="45"
+                                      fill="none"
+                                      stroke="rgba(74,222,128,0.7)"
+                                      strokeWidth="10"
+                                      strokeDasharray={`${yesPercentage * 2.827} 282.7`}
+                                      strokeDashoffset="70.7"
+                                      initial={{ strokeDasharray: "0 282.7" }}
+                                      animate={{ strokeDasharray: `${yesPercentage * 2.827} 282.7` }}
+                                      transition={{ duration: 1.2, type: "spring", stiffness: 40 }}
+                                    />
+                                  </svg>
+
+                                  {/* No Votes Arc */}
+                                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+                                    <motion.circle
+                                      cx="50"
+                                      cy="50"
+                                      r="45"
+                                      fill="none"
+                                      stroke="rgba(248,113,113,0.7)"
+                                      strokeWidth="10"
+                                      strokeDasharray={`${noPercentage * 2.827} 282.7`}
+                                      strokeDashoffset={70.7 - (yesPercentage * 2.827)}
+                                      initial={{ strokeDasharray: "0 282.7" }}
+                                      animate={{ strokeDasharray: `${noPercentage * 2.827} 282.7` }}
+                                      transition={{ duration: 1.2, type: "spring", stiffness: 40 }}
+                                    />
+                                  </svg>
+
+                                  {/* Center Text */}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-center">
+                                      <div className="text-sm font-medium text-white">
+                                        {totalVotes}
+                                      </div>
+                                      <div className="text-xs text-white/60">
+                                        votes
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </TableCell>
@@ -498,13 +687,39 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {proposal.status === "Active" ? (
-                                  <DropdownMenuItem 
-                                    onClick={() => handleDelist(proposal.id)}
-                                    className="text-amber-600 dark:text-amber-400"
-                                  >
-                                    <Ban className="mr-2 h-4 w-4" />
-                                    Delist Proposal
-                                  </DropdownMenuItem>
+                                  <>
+                                    <DropdownMenuItem 
+                                      onClick={() => setExpirationModalOpen(proposal.id)}
+                                      className="text-blue-600 dark:text-blue-400"
+                                    >
+                                      <Clock className="mr-2 h-4 w-4" />
+                                      Change Expiration
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleDelist(proposal.id)}
+                                      className="text-amber-600 dark:text-amber-400"
+                                    >
+                                      <Ban className="mr-2 h-4 w-4" />
+                                      Delist Proposal
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : proposal.status === "Expired" ? (
+                                  <>
+                                    <DropdownMenuItem 
+                                      onClick={() => setExpirationModalOpen(proposal.id)}
+                                      className="text-blue-600 dark:text-blue-400"
+                                    >
+                                      <Clock className="mr-2 h-4 w-4" />
+                                      Change Expiration
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleActivate(proposal.id)}
+                                      className="text-green-600 dark:text-green-400"
+                                    >
+                                      <Check className="mr-2 h-4 w-4" />
+                                      Activate Proposal
+                                    </DropdownMenuItem>
+                                  </>
                                 ) : (
                                   <DropdownMenuItem 
                                     onClick={() => handleActivate(proposal.id)}
@@ -559,6 +774,58 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!expirationModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setExpirationModalOpen(null);
+          setNewExpiration("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Proposal Expiration Date</DialogTitle>
+            <DialogDescription>
+              Set a new expiration date for the proposal
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="expiration">New Expiration Date</Label>
+              <Input
+                id="expiration"
+                type="datetime-local"
+                value={newExpiration}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpiration(e.target.value)}
+                min={new Date().toISOString().slice(0, 16)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExpirationModalOpen(null);
+                setNewExpiration("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => expirationModalOpen && handleChangeExpiration(expirationModalOpen)}
+              disabled={!newExpiration || loading === expirationModalOpen}
+            >
+              {loading === expirationModalOpen ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Expiration"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

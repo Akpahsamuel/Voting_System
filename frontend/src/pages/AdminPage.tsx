@@ -3,16 +3,16 @@ import { useCurrentAccount } from '@mysten/dapp-kit';
 import { useAdminCap } from "../hooks/useAdminCap";
 import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import ProposalManagement from "../components/admin/ProposalManagement";
-import GrantAdmin from "../components/admin/GrantAdmin";
 import SuperAdminManagement from "../components/admin/SuperAdminManagement";
 import CreateProposal from "../components/admin/CreateProposal";
+import VoterRegistry from "../components/admin/VoterRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Proposal } from "../types";
 import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, UserPlus, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, ShieldCheck, Wallet, BarChart2 } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from '../components/ui/badge';
 import { useNetworkVariable } from "../config/networkConfig";
@@ -287,12 +287,12 @@ export const AdminPage: FC = () => {
               Create Proposal
             </Button>
             <Button 
-              variant={activeTab === "grant_admin" ? "default" : "ghost"}
-              className={activeTab === "grant_admin" ? "bg-blue-600" : "hover:bg-blue-900/30"}
-              onClick={() => setActiveTab("grant_admin")}
+              variant={activeTab === "voter_registry" ? "default" : "ghost"}
+              className={activeTab === "voter_registry" ? "bg-amber-600" : "hover:bg-amber-900/30"}
+              onClick={() => setActiveTab("voter_registry")}
             >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Grant Admin
+              <Users className="mr-2 h-4 w-4" />
+              Voter Registry
             </Button>
             {hasSuperAdminCap && (
               <Button 
@@ -624,15 +624,15 @@ export const AdminPage: FC = () => {
                 <CreateProposal />
               </motion.div>
             )}
-
-            {activeTab === "grant_admin" && (
+            
+            {activeTab === "voter_registry" && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <GrantAdmin />
+                <VoterRegistry />
               </motion.div>
             )}
 
@@ -653,4 +653,4 @@ export const AdminPage: FC = () => {
   );
 };
 
-export default AdminPage; 
+export default AdminPage;

@@ -10,7 +10,7 @@ import Navbar from "../components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
 const ProposalView = () => {
-  const dashboardId = useNetworkVariable("dashboardId");
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const { data: voteNftsRes, refetch: refetchNfts} = useVoteNfts();
   const [showStats, setShowStats] = useState(true);
 

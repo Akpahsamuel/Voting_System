@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
+import { SuiTransactionBlockResponse } from "@mysten/sui/client";
 import { useAdminCap } from "../../hooks/useAdminCap";
 import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { toast } from "sonner";
@@ -9,14 +10,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, Shield } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 // Import shadcn components
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "../../components/ui/form";
 import { Calendar } from "../../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
@@ -41,9 +42,10 @@ const formSchema = z.object({
 
 const CreateProposal = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
   
-  const packageId = useNetworkVariable("packageId");
-  const dashboardId = useNetworkVariable("dashboardId");
+  const packageId = useNetworkVariable("packageId" as any);
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const { adminCapId, hasAdminCap } = useAdminCap();
   const { superAdminCapId, hasSuperAdminCap } = useSuperAdminCap();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
@@ -57,7 +59,11 @@ const CreateProposal = () => {
     },
   });
 
-  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof formSchema>, event?: React.BaseSyntheticEvent) => {
+    // Prevent default form submission behavior
+    if (event) {
+      event.preventDefault();
+    }
     // Check if user has either AdminCap or SuperAdminCap
     if (!hasAdminCap && !hasSuperAdminCap) {
       toast.error("You need admin or super admin capability to create proposals");
@@ -67,72 +73,82 @@ const CreateProposal = () => {
     try {
       setIsLoading(true);
       
+      // Indicate to the user that the transaction is being processed
+      toast.info("Creating proposal, please wait...");
+      
       // Calculate the expiration timestamp (in milliseconds)
       const expirationMs = values.expiration.getTime();
       
-      // Create a new proposal transaction
-      const tx = new Transaction();
-      let proposalId;
+      // Create a new transaction block using the updated SDK
+      const txb = new Transaction();
+
+      // Determine which capability and methods to use
+      const capId = hasAdminCap ? adminCapId! : superAdminCapId!;
+      const createTarget = hasAdminCap 
+        ? `${packageId}::proposal::create`
+        : `${packageId}::proposal::create_super`;
+      const registerTarget = hasAdminCap
+        ? `${packageId}::dashboard::register_proposal`
+        : `${packageId}::dashboard::register_proposal_super`;
       
-      // Create proposal path - use AdminCap if available, otherwise use SuperAdminCap
-      if (hasAdminCap) {
-        proposalId = tx.moveCall({
-          target: `${packageId}::proposal::create`,
-          arguments: [
-            tx.object(adminCapId!),
-            tx.pure.string(values.title),
-            tx.pure.string(values.description),
-            tx.pure.u64(expirationMs)
-          ],
-        });
-        
-        // Register proposal with AdminCap
-        tx.moveCall({
-          target: `${packageId}::dashboard::register_proposal`,
-          arguments: [
-            tx.object(dashboardId),
-            tx.object(adminCapId!),
-            proposalId
-          ],
-        });
-      } else if (hasSuperAdminCap) {
-        // Use create_super for SuperAdminCap
-        proposalId = tx.moveCall({
-          target: `${packageId}::proposal::create_super`,
-          arguments: [
-            tx.object(superAdminCapId!),
-            tx.pure.string(values.title),
-            tx.pure.string(values.description),
-            tx.pure.u64(expirationMs)
-          ],
-        });
-        
-        // Register proposal with SuperAdminCap
-        tx.moveCall({
-          target: `${packageId}::dashboard::register_proposal_super`,
-          arguments: [
-            tx.object(dashboardId),
-            tx.object(superAdminCapId!),
-            proposalId
-          ],
-        });
-      }
-      
-      await signAndExecute({
-        transaction: tx.serialize()
-      }, {
-        onSuccess: () => {
-          toast.success("Proposal created successfully!");
-          form.reset();
-          setIsLoading(false);
-        },
-        onError: (error) => {
-          toast.error(`Error creating proposal: ${error.message}`);
-          setIsLoading(false);
-        }
+      // Create proposal
+      const [proposal] = txb.moveCall({
+        target: createTarget,
+        arguments: [
+          txb.object(capId),
+          txb.pure.string(values.title),
+          txb.pure.string(values.description),
+          txb.pure.u64(expirationMs),
+          txb.pure.bool(isPrivate),
+        ],
       });
+      
+      // Register proposal
+      txb.moveCall({
+        target: registerTarget,
+        arguments: [
+          txb.object(dashboardId),
+          txb.object(capId),
+          proposal,
+          txb.pure.bool(isPrivate),
+        ],
+      });
+
+      console.log("Transaction block built:", txb);
+      
+      // Reset loading state after a timeout to prevent UI from being stuck
+      const loadingTimeout = setTimeout(() => {
+        if (setIsLoading) setIsLoading(false);
+      }, 10000); // 10 seconds timeout as a fallback
+      
+      // Use the signAndExecute function without await to prevent form submission from continuing
+      signAndExecute(
+        {
+          transaction: txb.serialize(), // Serialize the transaction to fix the type issue
+        },
+        {
+          onSuccess: (result) => {
+            clearTimeout(loadingTimeout);
+            console.log("Transaction success, digest:", result.digest);
+            toast.success("Proposal created successfully!");
+            form.reset();
+            setIsPrivate(false);
+            setIsLoading(false);
+          },
+          onError: (error: Error) => {
+            clearTimeout(loadingTimeout);
+            console.error("Transaction error:", error);
+            toast.error(`Failed to create proposal: ${error.message}`);
+            setIsLoading(false);
+          },
+        }
+      );
+      
+      // Return early to prevent form submission from continuing
+      return false;
     } catch (error: any) {
-      toast.error(`Error: ${error.message || error}`);
+      console.error("Creation error:", error);
+      toast.error(`Error: ${error.message || "Unknown error occurred"}`);
       setIsLoading(false);
     }
   };
@@ -269,6 +285,20 @@ const CreateProposal = () => {
                   </FormItem>
                 )}
               />
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isPrivate"
+                  checked={isPrivate}
+                  onChange={e => setIsPrivate(e.target.checked)}
+                  disabled={isLoading}
+                />
+                <label htmlFor="isPrivate" className="text-sm font-medium">
+                  Private Proposal
+                </label>
+                <span className="text-xs text-muted-foreground">If checked, only registered voters can vote on this proposal.</span>
+              </div>
               
               <div className="pt-4">
                 <Button 

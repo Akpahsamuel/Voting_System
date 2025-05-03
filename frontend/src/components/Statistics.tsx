@@ -2,7 +2,14 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle, Vote, Users, ShieldCheck } from "lucide-react";
 
-const StatCounter = ({ value, label, icon: Icon, delay }) => {
+type StatCounterProps = {
+  value: number;
+  label: string;
+  icon: React.ComponentType<{ size?: string | number; className?: string }>;
+  delay: number;
+};
+
+const StatCounter = ({ value, label, icon: Icon, delay }: StatCounterProps) => {
   const [count, setCount] = useState(0);
   
   useEffect(() => {
