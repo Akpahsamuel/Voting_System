@@ -1,14 +1,12 @@
 #[allow(unused_const, unused_variable)]
 
 module voting_system::dashboard{
-
-//use sui::object::{Self, UID, ID};
-//use sui::transfer;
-//use sui::tx_context::{Self, TxContext};
 use sui::types;
 use sui::vec_set::{Self, VecSet};
 use sui::dynamic_field as df;
-//use std::vector;
+
+
+//errors codes
 
 const EDuplicateProposal: u64 = 0;
 const EInvalidOtw: u64 = 1;
@@ -189,6 +187,72 @@ public entry fun register_voter_for_private_proposal_super(
     };
 }
 
+/// Register multiple voters for a private proposal in a single transaction
+/// Can only be called by an admin
+public entry fun register_voters_batch_for_private_proposal(
+    admin_cap: &AdminCap,
+    self: &mut Dashboard,
+    proposal_id: ID,
+    voter_addresses: vector<address>,
+    ctx: &TxContext
+) {
+    // Check if AdminCap is revoked
+    assert!(!is_admin_cap_revoked(self, &object::id(admin_cap)), ECapRevoked);
+    
+    // Verify proposal is private
+    assert!(is_private_proposal(self, &proposal_id), ERegistryNotFound);
+    
+    // Get the registry key
+    let key = VoterRegistryKey { proposal_id };
+    assert!(df::exists_with_type<VoterRegistryKey, VoterRegistry>(&self.id, key), ERegistryNotFound);
+    
+    // Add each voter to the registry
+    let registry = df::borrow_mut<VoterRegistryKey, VoterRegistry>(&mut self.id, key);
+    let mut i = 0;
+    let len = vector::length(&voter_addresses);
+    
+    while (i < len) {
+        let voter_address = *vector::borrow(&voter_addresses, i);
+        if (!vec_set::contains(&registry.registered_voters, &voter_address)) {
+            vec_set::insert(&mut registry.registered_voters, voter_address);
+        };
+        i = i + 1;
+    }
+}
+
+/// Register multiple voters for a private proposal in a single transaction
+/// Can only be called by a super admin
+public entry fun register_voters_batch_for_private_proposal_super(
+    super_admin_cap: &SuperAdminCap,
+    self: &mut Dashboard,
+    proposal_id: ID,
+    voter_addresses: vector<address>,
+    ctx: &TxContext
+) {
+    // Check if SuperAdminCap is revoked
+    assert!(!is_super_admin_cap_revoked(self, &object::id(super_admin_cap)), ECapRevoked);
+    
+    // Verify proposal is private
+    assert!(is_private_proposal(self, &proposal_id), ERegistryNotFound);
+    
+    // Get the registry key
+    let key = VoterRegistryKey { proposal_id };
+    assert!(df::exists_with_type<VoterRegistryKey, VoterRegistry>(&self.id, key), ERegistryNotFound);
+    
+    // Add each voter to the registry
+    let registry = df::borrow_mut<VoterRegistryKey, VoterRegistry>(&mut self.id, key);
+    let mut i = 0;
+    let len = vector::length(&voter_addresses);
+    
+    while (i < len) {
+        let voter_address = *vector::borrow(&voter_addresses, i);
+        if (!vec_set::contains(&registry.registered_voters, &voter_address)) {
+            vec_set::insert(&mut registry.registered_voters, voter_address);
+        };
+        i = i + 1;
+    }
+}
+
 /// Unregister a voter from a private proposal
 /// Can only be called by an admin
 public entry fun unregister_voter_from_private_proposal(
@@ -215,6 +279,39 @@ public entry fun unregister_voter_from_private_proposal(
     };
 }
 
+/// Unregister multiple voters from a private proposal in a single transaction
+/// Can only be called by an admin
+public entry fun unregister_voters_batch_from_private_proposal(
+    admin_cap: &AdminCap,
+    self: &mut Dashboard,
+    proposal_id: ID,
+    voter_addresses: vector<address>,
+    ctx: &TxContext
+) {
+    // Check if AdminCap is revoked
+    assert!(!is_admin_cap_revoked(self, &object::id(admin_cap)), ECapRevoked);
+    
+    // Verify proposal is private
+    assert!(is_private_proposal(self, &proposal_id), ERegistryNotFound);
+    
+    // Get the registry key
+    let key = VoterRegistryKey { proposal_id };
+    assert!(df::exists_with_type<VoterRegistryKey, VoterRegistry>(&self.id, key), ERegistryNotFound);
+    
+    // Remove each voter from the registry
+    let registry = df::borrow_mut<VoterRegistryKey, VoterRegistry>(&mut self.id, key);
+    let mut i = 0;
+    let len = vector::length(&voter_addresses);
+    
+    while (i < len) {
+        let voter_address = *vector::borrow(&voter_addresses, i);
+        if (vec_set::contains(&registry.registered_voters, &voter_address)) {
+            vec_set::remove(&mut registry.registered_voters, &voter_address);
+        };
+        i = i + 1;
+    }
+}
+
 /// Unregister a voter from a private proposal using super admin privileges
 /// Can only be called by a super admin
 public entry fun unregister_voter_from_private_proposal_super(
@@ -239,6 +336,39 @@ public entry fun unregister_voter_from_private_proposal_super(
     if (vec_set::contains(&registry.registered_voters, &voter_address)) {
         vec_set::remove(&mut registry.registered_voters, &voter_address);
     };
+}
+
+/// Unregister multiple voters from a private proposal in a single transaction
+/// Can only be called by a super admin
+public entry fun unregister_voters_batch_from_private_proposal_super(
+    super_admin_cap: &SuperAdminCap,
+    self: &mut Dashboard,
+    proposal_id: ID,
+    voter_addresses: vector<address>,
+    ctx: &TxContext
+) {
+    // Check if SuperAdminCap is revoked
+    assert!(!is_super_admin_cap_revoked(self, &object::id(super_admin_cap)), ECapRevoked);
+    
+    // Verify proposal is private
+    assert!(is_private_proposal(self, &proposal_id), ERegistryNotFound);
+    
+    // Get the registry key
+    let key = VoterRegistryKey { proposal_id };
+    assert!(df::exists_with_type<VoterRegistryKey, VoterRegistry>(&self.id, key), ERegistryNotFound);
+    
+    // Remove each voter from the registry
+    let registry = df::borrow_mut<VoterRegistryKey, VoterRegistry>(&mut self.id, key);
+    let mut i = 0;
+    let len = vector::length(&voter_addresses);
+    
+    while (i < len) {
+        let voter_address = *vector::borrow(&voter_addresses, i);
+        if (vec_set::contains(&registry.registered_voters, &voter_address)) {
+            vec_set::remove(&mut registry.registered_voters, &voter_address);
+        };
+        i = i + 1;
+    }
 }
 
 /// Check if a voter is registered for a specific private proposal
