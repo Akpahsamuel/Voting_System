@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, Plus, Trash } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 // Import shadcn components
@@ -36,31 +36,21 @@ const formSchema = z.object({
     return date >= tomorrow;
   }, {
     message: "Expiration date must be at least tomorrow",
-  }),
-  candidates: z.array(z.object({
-    name: z.string().min(1, { message: "Candidate name is required" }),
-    description: z.string().min(1, { message: "Candidate description is required" }),
-    imageUrl: z.string().optional(),
-  })).min(2, { message: "At least 2 candidates are required" }),
+  })
 });
-
-type CandidateInput = {
-  name: string;
-  description: string;
-  imageUrl?: string;
-};
 
 interface CreateBallotProps {
   adminCapId: string | undefined;
   superAdminCapId: string | undefined;
   hasSuperAdminCap: boolean;
+  onBallotCreated?: (ballotId: string) => void;
 }
 
-const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap }: CreateBallotProps) => {
+const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotCreated }: CreateBallotProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   
-  const packageId = useNetworkVariable("packageId" as any);
+  const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId" as any);
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
@@ -69,10 +59,7 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap }: CreateB
     defaultValues: {
       title: "",
       description: "",
-      candidates: [
-        { name: "", description: "", imageUrl: "" },
-        { name: "", description: "", imageUrl: "" }
-      ]
+      expiration: new Date()
     },
   });
 
@@ -85,54 +72,102 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap }: CreateB
     setIsLoading(true);
 
     try {
+      // Create a transaction that both creates the ballot and registers it in a single transaction
       const tx = new Transaction();
       
-      // Create the ballot
-      if (hasSuperAdminCap && superAdminCapId) {
-        tx.moveCall({
-          target: `${packageId}::ballot::create_ballot_super`,
-          arguments: [
-            tx.object(dashboardId),
-            tx.object(superAdminCapId),
-            tx.pure(values.title),
-            tx.pure(values.description),
-            tx.pure(Math.floor(values.expiration.getTime() / 1000)), // Convert to Unix timestamp
-            tx.pure(isPrivate),
-          ],
-        });
-      } else if (adminCapId) {
-        tx.moveCall({
-          target: `${packageId}::ballot::create_ballot`,
-          arguments: [
-            tx.object(dashboardId),
-            tx.object(adminCapId),
-            tx.pure(values.title),
-            tx.pure(values.description),
-            tx.pure(Math.floor(values.expiration.getTime() / 1000)), // Convert to Unix timestamp
-            tx.pure(isPrivate),
-          ],
-        });
-      }
+      // Determine which capability and methods to use
+      const capId = hasSuperAdminCap && superAdminCapId ? superAdminCapId : adminCapId;
+      const createTarget = hasSuperAdminCap && superAdminCapId
+        ? `${packageId}::ballot::create_ballot_super`
+        : `${packageId}::ballot::create_ballot`;
+      const registerTarget = hasSuperAdminCap && superAdminCapId
+        ? `${packageId}::dashboard::register_proposal_super`
+        : `${packageId}::dashboard::register_proposal`;
+      
+      // Create ballot and capture its ID
+      const [ballotId] = tx.moveCall({
+        target: createTarget,
+        arguments: [
+          tx.object(capId!),
+          tx.pure.string(values.title),
+          tx.pure.string(values.description),
+          tx.pure.u64(Math.floor(values.expiration.getTime() / 1000)), // Convert to Unix timestamp
+          tx.pure.bool(isPrivate),
+        ],
+      });
+      
+      // Register ballot with dashboard in the same transaction
+      tx.moveCall({
+        target: registerTarget,
+        arguments: [
+          tx.object(dashboardId),
+          tx.object(capId!),
+          ballotId, // Use the result directly
+          tx.pure.bool(isPrivate),
+        ],
+      });
+      
+      console.log("Transaction block built:", tx);
 
+      // Execute the transaction
       signAndExecute(
         {
-          transaction: tx,
+          transaction: tx.serialize(),
         },
         {
-          onSuccess: (result: SuiTransactionBlockResponse) => {
-            // Extract the ballot ID from the transaction result
-            const ballotId = result.effects?.created?.[0]?.reference?.objectId;
+          onSuccess: (result) => {
+            console.log("Ballot creation and registration success:", result);
             
-            if (ballotId) {
-              // Now add candidates to the ballot
-              addCandidatesToBallot(ballotId, values.candidates);
-            } else {
-              toast.error("Failed to create ballot: Ballot ID not found in transaction result");
-              setIsLoading(false);
+            // Extract the ballot ID for callback purposes
+            let extractedBallotId = null;
+            
+            try {
+              // Use type assertions to safely handle the effects
+              const resultObj = result as any; // Type assertion to avoid TypeScript errors
+              
+              // Check created objects first
+              if (resultObj.effects?.created && Array.isArray(resultObj.effects.created)) {
+                for (const created of resultObj.effects.created) {
+                  if (created?.owner?.Shared && 
+                      created?.reference?.objectId) {
+                    extractedBallotId = created.reference.objectId;
+                    console.log("Found ballot ID from created shared objects:", extractedBallotId);
+                    break;
+                  }
+                }
+              }
+              
+              // Other extraction methods...
+              if (!extractedBallotId && resultObj.events && Array.isArray(resultObj.events)) {
+                for (const event of resultObj.events) {
+                  if (event?.type?.includes?.('::ballot::') && 
+                      event?.parsedJson?.id) {
+                    extractedBallotId = event.parsedJson.id;
+                    break;
+                  }
+                }
+              }
+              
+              // If still not found, try to parse the transaction digest (last resort)
+              if (!extractedBallotId && resultObj.digest) {
+                console.log("Could not extract ballot ID directly, but transaction was successful with digest:", resultObj.digest);
+              }
+            } catch (error) {
+              console.error("Error parsing transaction result for ballot ID:", error);
             }
+            
+            toast.success("Ballot created and registered successfully");
+            form.reset();
+            
+            // Call the callback with the new ballot ID if provided
+            if (onBallotCreated && extractedBallotId) {
+              onBallotCreated(extractedBallotId);
+            }
+            
+            setIsLoading(false);
           },
           onError: (error) => {
-            console.error("Transaction failed:", error);
+            console.error("Ballot creation transaction failed:", error);
             toast.error("Failed to create ballot");
             setIsLoading(false);
           },
@@ -143,107 +178,6 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap }: CreateB
       toast.error("An error occurred while creating the ballot");
       setIsLoading(false);
     }
-  };
-
-  const addCandidatesToBallot = async (ballotId: string, candidates: CandidateInput[]) => {
-    try {
-      // Create a transaction to add all candidates
-      const tx = new Transaction();
-      
-      for (const candidate of candidates) {
-        if (candidate.imageUrl && candidate.imageUrl.trim() !== "") {
-          // Add candidate with image URL
-          if (hasSuperAdminCap && superAdminCapId) {
-            tx.moveCall({
-              target: `${packageId}::ballot::add_candidate_with_image_super`,
-              arguments: [
-                tx.object(ballotId),
-                tx.object(superAdminCapId),
-                tx.pure(candidate.name),
-                tx.pure(candidate.description),
-                tx.pure(candidate.imageUrl),
-              ],
-            });
-          } else if (adminCapId) {
-            tx.moveCall({
-              target: `${packageId}::ballot::add_candidate_with_image`,
-              arguments: [
-                tx.object(ballotId),
-                tx.object(adminCapId),
-                tx.pure(candidate.name),
-                tx.pure(candidate.description),
-                tx.pure(candidate.imageUrl),
-              ],
-            });
-          }
-        } else {
-          // Add candidate without image URL
-          if (hasSuperAdminCap && superAdminCapId) {
-            tx.moveCall({
-              target: `${packageId}::ballot::add_candidate_super`,
-              arguments: [
-                tx.object(ballotId),
-                tx.object(superAdminCapId),
-                tx.pure(candidate.name),
-                tx.pure(candidate.description),
-              ],
-            });
-          } else if (adminCapId) {
-            tx.moveCall({
-              target: `${packageId}::ballot::add_candidate`,
-              arguments: [
-                tx.object(ballotId),
-                tx.object(adminCapId),
-                tx.pure(candidate.name),
-                tx.pure(candidate.description),
-              ],
-            });
-          }
-        }
-      }
-
-      signAndExecute(
-        {
-          transaction: tx,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Ballot created successfully with candidates");
-            form.reset();
-            setIsLoading(false);
-          },
-          onError: (error) => {
-            console.error("Failed to add candidates:", error);
-            toast.error("Ballot created but failed to add candidates");
-            setIsLoading(false);
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error adding candidates:", error);
-      toast.error("Ballot created but failed to add candidates");
-      setIsLoading(false);
-    }
-  };
-
-  const addCandidate = () => {
-    const currentCandidates = form.getValues("candidates");
-    form.setValue("candidates", [
-      ...currentCandidates,
-      { name: "", description: "", imageUrl: "" }
-    ]);
-  };
-
-  const removeCandidate = (index: number) => {
-    const currentCandidates = form.getValues("candidates");
-    if (currentCandidates.length <= 2) {
-      toast.error("At least 2 candidates are required");
-      return;
-    }
-    
-    const updatedCandidates = [...currentCandidates];
-    updatedCandidates.splice(index, 1);
-    form.setValue("candidates", updatedCandidates);
   };
 
   return (
@@ -357,90 +291,11 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap }: CreateB
               </label>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Candidates</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addCandidate}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Candidate
-                </Button>
-              </div>
-
-              {form.watch("candidates").map((_, index) => (
-                <div key={index} className="p-4 border rounded-md space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Candidate {index + 1}</h4>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeCandidate(index)}
-                    >
-                      <Trash className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name={`candidates.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Candidate name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`candidates.${index}.description`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Candidate description"
-                            className="resize-none"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name={`candidates.${index}.imageUrl`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Image URL (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://example.com/image.jpg" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          A URL to an image representing this candidate
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              ))}
-              {form.formState.errors.candidates && (
-                <p className="text-sm font-medium text-red-500">
-                  {form.formState.errors.candidates.message}
-                </p>
-              )}
-            </div>
+            <Alert className="mb-6">
+              <AlertDescription>
+                After creating the ballot, you'll be able to add candidates.
+              </AlertDescription>
+            </Alert>
 
             <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? (

@@ -6,13 +6,15 @@ import ProposalManagement from "../components/admin/ProposalManagement";
 import SuperAdminManagement from "../components/admin/SuperAdminManagement";
 import CreateProposal from "../components/admin/CreateProposal";
 import VoterRegistry from "../components/admin/VoterRegistry";
+import BallotManagement from "../components/ballot/BallotManagement";
+import CreateBallot from "../components/ballot/CreateBallot";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Proposal } from "../types";
 import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, ShieldCheck, Wallet, BarChart2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Activity, UserCheck, Clock, FileText, Users, Settings, LayoutDashboard, ChevronRight, AlertTriangle, FileCode, Terminal, Ban, ShieldCheck, Wallet, BarChart2, Vote } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from '../components/ui/badge';
 import { useNetworkVariable } from "../config/networkConfig";
@@ -81,67 +83,78 @@ export const AdminPage: FC = () => {
     }
   );
 
+  // Helper to normalize status from Move object
+  function getStatusVariant(status: any): string {
+    if (!status) return "Unknown";
+    // If status is a string, return as is
+    if (typeof status === "string") return status;
+    // If status is an object with fields.name or just name
+    if (status.variant) return status.variant;
+    if (status.fields && status.fields.name) return status.fields.name;
+    if (status.name) return status.name;
+    return JSON.stringify(status);
+  }
+
   // Process proposal data when it changes
   useEffect(() => {
     if (!proposalsData || !Array.isArray(proposalsData) || isPending) return;
-    
-    const parsedProposals = proposalsData
-      .map((item: SuiObjectResponse) => {
-        if (!item.data) return null;
-        const obj = item.data as SuiObjectData;
-        if (obj.content?.dataType !== "moveObject") return null;
-        
-        const fields = obj.content.fields as any;
-        return {
-          id: obj.objectId as SuiID,
-          title: fields.title,
-          description: fields.description,
-          votedYesCount: Number(fields.voted_yes_count),
-          votedNoCount: Number(fields.voted_no_count),
-          expiration: Number(fields.expiration),
-          status: fields.status,
-          creator: fields.creator || "Unknown",
-          voter_registry: fields.voter_registry || []
-        };
-      })
-      .filter(Boolean) as unknown as Proposal[];
-    
-    // Perform analytics calculations based on real data
-    const now = Date.now();
-    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    
-    const activeCount = parsedProposals.filter(p => p.status.variant === "Active").length;
-    const delistedCount = parsedProposals.filter(p => p.status.variant === "Delisted").length;
-    const totalVotes = parsedProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
-    
-    // Count proposals created within the last week (approximation using expiration)
-    const recentProposals = parsedProposals.filter(p => p.expiration > now && p.expiration - (7 * 24 * 60 * 60 * 1000) < now);
-    
-    // Estimate vote activity in the last week (this is an estimation)
-    // In a real app, you would track this with timestamps on votes
-    const recentVotesEstimate = Math.floor(totalVotes * 0.3);
-    
-    // For change percentages, we're using placeholder values since we don't have historical data
-    // In a real app, you would compare current week to previous week
-    
-    setAnalyticsData({
-      totalProposals: parsedProposals.length,
-      activeProposals: activeCount,
-      delistedProposals: delistedCount,
-      totalVotes: totalVotes,
-      votesLastWeek: recentVotesEstimate,
-      votesWeeklyChange: 8.2, // Placeholder - in a real app, calculate from historical data
-      proposalsLastWeek: recentProposals.length,
-      proposalsWeeklyChange: 12.5, // Placeholder - in a real app, calculate from historical data
-      activeUsers: parsedProposals.reduce((set, p) => {
-        p.voter_registry.forEach(voter => set.add(voter));
-        return set;
-      }, new Set<string>()).size,
-      activeUsersChange: -2.3 // Placeholder - in a real app, calculate from historical data
-    });
+    try {
+      const parsedProposals = proposalsData
+        .map((item: SuiObjectResponse) => {
+          if (!item.data) return null;
+          const obj = item.data as SuiObjectData;
+          if (obj.content?.dataType !== "moveObject") return null;
+          const fields = obj.content.fields as any;
+          // Defensive: expiration may be seconds or ms, normalize to ms
+          let expiration = Number(fields.expiration);
+          if (expiration < 1e12) expiration = expiration * 1000;
+          return {
+            id: obj.objectId as SuiID,
+            title: fields.title || "Untitled",
+            description: fields.description || "",
+            votedYesCount: Number(fields.voted_yes_count) || 0,
+            votedNoCount: Number(fields.voted_no_count) || 0,
+            expiration,
+            status: getStatusVariant(fields.status),
+            creator: fields.creator || "Unknown",
+            voter_registry: fields.voter_registry || []
+          };
+        })
+        .filter(Boolean) as unknown as Proposal[];
 
-    setProposals(parsedProposals);
-    setIsLoading(false);
+      // Perform analytics calculations based on real data
+      const now = Date.now();
+      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+      const activeCount = parsedProposals.filter(p => p.status === "Active").length;
+      const delistedCount = parsedProposals.filter(p => p.status === "Delisted").length;
+      const totalVotes = parsedProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
+      const recentProposals = parsedProposals.filter(p => p.expiration > now && p.expiration - (7 * 24 * 60 * 60 * 1000) < now);
+      const recentVotesEstimate = Math.floor(totalVotes * 0.3);
+
+      setAnalyticsData({
+        totalProposals: parsedProposals.length,
+        activeProposals: activeCount,
+        delistedProposals: delistedCount,
+        totalVotes: totalVotes,
+        votesLastWeek: recentVotesEstimate,
+        votesWeeklyChange: 8.2, // Placeholder
+        proposalsLastWeek: recentProposals.length,
+        proposalsWeeklyChange: 12.5, // Placeholder
+        activeUsers: parsedProposals.reduce((set, p) => {
+          p.voter_registry.forEach((v: string) => set.add(v));
+          return set;
+        }, new Set<string>()).size,
+        activeUsersChange: -2.3 // Placeholder
+      });
+
+      setProposals(parsedProposals);
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Failed to parse proposals:", err);
+      setProposals([]);
+      setIsLoading(false);
+    }
   }, [proposalsData, isPending]);
 
   // Utility functions
@@ -237,7 +250,7 @@ export const AdminPage: FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-            <p className="mt-1 text-white/60">Manage proposals and view governance statistics</p>
+            <p className="mt-1 text-white/60">Manage proposals, ballots, and view governance statistics</p>
           </div>
           
           <div className="mt-4 md:mt-0 flex items-center space-x-4">
@@ -285,6 +298,22 @@ export const AdminPage: FC = () => {
             >
               <FileText className="mr-2 h-4 w-4" />
               Create Proposal
+            </Button>
+            <Button 
+              variant={activeTab === "ballot_management" ? "default" : "ghost"}
+              className={activeTab === "ballot_management" ? "bg-purple-600" : "hover:bg-purple-900/30"}
+              onClick={() => setActiveTab("ballot_management")}
+            >
+              <Vote className="mr-2 h-4 w-4" />
+              Ballot Management
+            </Button>
+            <Button 
+              variant={activeTab === "create_ballot" ? "default" : "ghost"}
+              className={activeTab === "create_ballot" ? "bg-pink-600" : "hover:bg-pink-900/30"}
+              onClick={() => setActiveTab("create_ballot")}
+            >
+              <Vote className="mr-2 h-4 w-4" />
+              Create Ballot
             </Button>
             <Button 
               variant={activeTab === "voter_registry" ? "default" : "ghost"}
@@ -490,10 +519,10 @@ export const AdminPage: FC = () => {
                         {proposals.slice(0, 5).map((proposal, i) => (
                           <div key={`proposal-${i}`} className="flex items-center p-2 hover:bg-white/5 rounded-md transition-colors">
                             <div className={`h-8 w-8 rounded-full flex items-center justify-center 
-                              ${proposal.status.variant === "Active" ? 'bg-blue-900/50 text-blue-400' : 
+                              ${proposal.status === "Active" ? 'bg-blue-900/50 text-blue-400' : 
                                 'bg-red-900/50 text-red-400'}`
                             }>
-                              {proposal.status.variant === "Active" ? <FileText className="h-4 w-4" /> : 
+                              {proposal.status === "Active" ? <FileText className="h-4 w-4" /> : 
                                 <Ban className="h-4 w-4" />}
                             </div>
                             <div className="ml-3 flex-1">
@@ -501,9 +530,9 @@ export const AdminPage: FC = () => {
                                 {proposal.title.length > 30 ? proposal.title.substring(0, 30) + '...' : proposal.title}
                               </p>
                               <p className="text-xs text-white/60">
-                                {proposal.status.variant === "Active" ? 
+                                {proposal.status === "Active" ? 
                                   `${proposal.votedYesCount + proposal.votedNoCount} votes` : 
-                                  `Status: ${proposal.status.variant}`}
+                                  `Status: ${proposal.status}`}
                               </p>
                             </div>
                             <div className="text-xs text-white/50">
@@ -622,6 +651,43 @@ export const AdminPage: FC = () => {
                 transition={{ duration: 0.2 }}
               >
                 <CreateProposal />
+              </motion.div>
+            )}
+            
+            {activeTab === "ballot_management" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <BallotManagement 
+                  ballots={[]} 
+                  isLoading={false} 
+                  adminCapId={adminCapId} 
+                  superAdminCapId={superAdminCapId}
+                  hasSuperAdminCap={hasSuperAdminCap}
+                />
+              </motion.div>
+            )}
+            
+            {activeTab === "create_ballot" && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <CreateBallot
+                  adminCapId={adminCapId} 
+                  superAdminCapId={superAdminCapId}
+                  hasSuperAdminCap={hasSuperAdminCap}
+                  onBallotCreated={(ballotId) => {
+                    console.log("Ballot created with ID:", ballotId);
+                    // Optionally switch to ballot management tab after creation
+                    setActiveTab("ballot_management");
+                  }}
+                />
               </motion.div>
             )}
             

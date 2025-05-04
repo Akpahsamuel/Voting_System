@@ -158,61 +158,7 @@ module voting_system::ballot {
         });
     }
 
-    // ======== View Functions ========
-
-    /// Get the vote proof URL
-    public fun ballot_vote_proof_url(self: &BallotVoteProof): Url {
-        self.url
-    }
-
-    /// Check if ballot is active
-    public fun is_active(self: &Ballot): bool {
-        match (self.status) {
-            BallotStatus::Active => true,
-            _ => false,
-        }
-    }
-
-    public fun status(self: &Ballot): &BallotStatus {
-        &self.status
-    }
-
-    public fun title(self: &Ballot): String {
-        self.title
-    }
-
-    public fun description(self: &Ballot): String {
-        self.description
-    }
-
-    public fun candidates(self: &Ballot): &vector<Candidate> {
-        &self.candidates
-    }
-
-    public fun candidate_count(self: &Ballot): u64 {
-        self.candidate_count
-    }
-
-    public fun total_votes(self: &Ballot): u64 {
-        self.total_votes
-    }
-
-    public fun expiration(self: &Ballot): u64 {
-        self.expiration
-    }
-
-    public fun creator(self: &Ballot): address {
-        self.creator
-    }
-
-    public fun voters(self: &Ballot): &Table<address, u64> {
-        &self.voters
-    }
-
-    public fun is_private(self: &Ballot): bool {
-        self.is_private
-    }
-
+  
     /// Get a specific candidate's vote count
     public fun get_candidate_votes(self: &Ballot, candidate_id: u64): u64 {
         let mut i = 0;
@@ -580,4 +526,61 @@ module voting_system::ballot {
 
         transfer::transfer(proof, tx_context::sender(ctx));
     }
+
+
+      // ======== View Functions ========
+
+    /// Get the vote proof URL
+    public fun ballot_vote_proof_url(self: &BallotVoteProof): Url {
+        self.url
+    }
+
+    /// Check if ballot is active
+    public fun is_active(self: &Ballot): bool {
+        match (self.status) {
+            BallotStatus::Active => true,
+            _ => false,
+        }
+    }
+
+    public fun status(self: &Ballot): &BallotStatus {
+        &self.status
+    }
+
+    public fun title(self: &Ballot): String {
+        self.title
+    }
+
+    public fun description(self: &Ballot): String {
+        self.description
+    }
+
+    public fun candidates(self: &Ballot): &vector<Candidate> {
+        &self.candidates
+    }
+
+    public fun candidate_count(self: &Ballot): u64 {
+        self.candidate_count
+    }
+
+    public fun total_votes(self: &Ballot): u64 {
+        self.total_votes
+    }
+
+    public fun expiration(self: &Ballot): u64 {
+        self.expiration
+    }
+
+    public fun creator(self: &Ballot): address {
+        self.creator
+    }
+
+    public fun voters(self: &Ballot): &Table<address, u64> {
+        &self.voters
+    }
+
+    public fun is_private(self: &Ballot): bool {
+        self.is_private
+    }
+
 }

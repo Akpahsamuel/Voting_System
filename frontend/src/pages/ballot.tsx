@@ -1,376 +1,525 @@
 import { useState, useEffect } from "react";
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
-import { motion } from "framer-motion";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { Doughnut } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
-import { Check, ChevronRight, Vote, Shield, Clock } from "lucide-react";
+import { ConnectButton, useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
+import { useParams, useNavigate } from "react-router-dom";
+import { AlertCircle, Clock, Vote, User, Shield, Info, Loader2 } from "lucide-react";
 
-// Register ChartJS components
-ChartJS.register(ArcElement, Tooltip, Legend);
+// Import UI components
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Separator } from "../components/ui/separator";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 
-export default function VotingPage() {
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [voted, setVoted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<{ id: number; name: string; description: string; votes: number; }[]>([]);
-  const [timeLeft, setTimeLeft] = useState({
-    days: 2,
-    hours: 14,
-    minutes: 35,
-    seconds: 22,
-  });
-  
+interface Candidate {
+  id: number;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  votes: number;
+}
+
+interface BallotData {
+  id: string;
+  title: string;
+  description: string;
+  expiration: number;
+  isPrivate: boolean;
+  candidates: Candidate[];
+  totalVotes: number;
+  status: 'Active' | 'Delisted' | 'Expired';
+  creator: string;
+}
+
+export default function BallotPage() {
+  const { ballotId } = useParams<{ ballotId: string }>();
+  const navigate = useNavigate();
   const currentAccount = useCurrentAccount();
-  // Removed unused 'signAndExecute' to resolve the error
+  const suiClient = useSuiClient();
   
-  // Mock voting options
-  const votingOptions = [
-    { id: 1, name: "Proposal A: Increase Treasury Allocation", description: "Allocate additional funds to the community treasury for ecosystem growth", votes: 1243 },
-    { id: 2, name: "Proposal B: New Governance Framework", description: "Implement a new voting mechanism for future governance decisions", votes: 876 },
-    { id: 3, name: "Proposal C: Protocol Upgrade", description: "Upgrade to the latest blockchain protocol version with enhanced security", votes: 1052 },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [ballot, setBallot] = useState<BallotData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  });
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
+  const [showVoteDialog, setShowVoteDialog] = useState(false);
 
-  // Countdown timer effect
+  // Fetch ballot data
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        const newSeconds = prev.seconds - 1;
+    if (!ballotId) {
+      setError("Ballot ID is required");
+      setLoading(false);
+      return;
+    }
+
+    const fetchBallot = async () => {
+      try {
+        setLoading(true);
+        console.log("Fetching ballot with ID:", ballotId);
         
-        if (newSeconds < 0) {
-          const newMinutes = prev.minutes - 1;
-          
-          if (newMinutes < 0) {
-            const newHours = prev.hours - 1;
-            
-            if (newHours < 0) {
-              const newDays = prev.days - 1;
-              
-              if (newDays < 0) {
-                clearInterval(timer);
-                return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-              }
-              
-              return { days: newDays, hours: 23, minutes: 59, seconds: 59 };
-            }
-            
-            return { ...prev, hours: newHours, minutes: 59, seconds: 59 };
+        const response = await suiClient.getObject({
+          id: ballotId,
+          options: {
+            showContent: true
           }
-          
-          return { ...prev, minutes: newMinutes, seconds: 59 };
+        });
+
+        if (!response?.data || !response.data.content) {
+          throw new Error("Ballot not found or has no content");
+        }
+
+        if (response.data.content.dataType !== "moveObject") {
+          throw new Error("Invalid ballot data format");
+        }
+
+        const fields = response.data.content.fields as any;
+        console.log("Ballot fields:", fields);
+        
+        // Parse candidates data
+        let candidatesData = [];
+        if (fields.candidates) {
+          if (Array.isArray(fields.candidates)) {
+            candidatesData = fields.candidates;
+          } else if (fields.candidates.vec && Array.isArray(fields.candidates.vec)) {
+            candidatesData = fields.candidates.vec;
+          }
         }
         
-        return { ...prev, seconds: newSeconds };
-      });
-    }, 1000);
+        // Parse candidates
+        const candidates: Candidate[] = [];
+        for (let i = 0; i < candidatesData.length; i++) {
+          const candidate = candidatesData[i];
+          
+          if (!candidate) continue;
+          
+          // Extract image URL which might be in different formats
+          let imageUrl = undefined;
+          if (candidate.image_url) {
+            if (typeof candidate.image_url === 'string') {
+              imageUrl = candidate.image_url;
+            } else if (candidate.image_url.some) {
+              // Handle Option<String> from Sui Move
+              imageUrl = candidate.image_url.some || undefined;
+            }
+          }
+          
+          candidates.push({
+            id: Number(candidate.id || 0),
+            name: candidate.name || "",
+            description: candidate.description || "",
+            votes: Number(candidate.vote_count || 0),
+            imageUrl: imageUrl
+          });
+        }
+        
+        // Determine ballot status
+        let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
+        const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
+        
+        if (fields.status?.fields?.name === "Delisted") {
+          status = 'Delisted';
+        } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+          status = 'Expired';
+        }
+        
+        // Create ballot object
+        const ballotData: BallotData = {
+          id: response.data.objectId,
+          title: fields.title || "Untitled Ballot",
+          description: fields.description || "No description",
+          expiration: Number(fields.expiration || 0),
+          isPrivate: Boolean(fields.is_private),
+          candidates: candidates,
+          totalVotes: Number(fields.total_votes || 0),
+          status,
+          creator: fields.creator || ""
+        };
+        
+        setBallot(ballotData);
+        console.log("Processed ballot data:", ballotData);
+      } catch (error) {
+        console.error("Error fetching ballot:", error);
+        setError("Failed to load ballot data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (currentAccount) {
+      fetchBallot();
+    } else {
+      setLoading(false);
+      setError("Please connect your wallet to view this ballot");
+    }
+  }, [ballotId, currentAccount, suiClient]);
+
+  // Calculate time left if ballot has expiration
+  useEffect(() => {
+    if (!ballot?.expiration) return;
+    
+    const calculateTimeLeft = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const diff = ballot.expiration - now;
+      
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+      
+      const days = Math.floor(diff / (60 * 60 * 24));
+      const hours = Math.floor((diff % (60 * 60 * 24)) / (60 * 60));
+      const minutes = Math.floor((diff % (60 * 60)) / 60);
+      const seconds = Math.floor(diff % 60);
+      
+      setTimeLeft({ days, hours, minutes, seconds });
+    };
+    
+    calculateTimeLeft();
+    const timer = setInterval(calculateTimeLeft, 1000);
     
     return () => clearInterval(timer);
-  }, []);
+  }, [ballot?.expiration]);
 
-  // Mock function to submit vote to Sui blockchain
+  const handleCandidateSelect = (candidate: Candidate) => {
+    setSelectedCandidate(candidate);
+  };
+
+  const handleVoteClick = () => {
+    setShowVoteDialog(true);
+  };
+
   const submitVote = async () => {
-    if (!selectedOption) {
-      toast.error("Please select an option to vote");
+    if (!selectedCandidate) {
       return;
     }
 
-    if (!currentAccount) {
-      toast.error("Please connect your wallet to vote");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Create a transaction block
-      // const tx = new TransactionBlock(); // Removed unused variable
-      
-      // In a real implementation, you would use the actual module and function
-      // tx.moveCall({
-      //   target: `${packageId}::voting::cast_vote`,
-      //   arguments: [tx.pure(selectedOption)],
-      // });
-
-      // For demonstration, we'll simulate a transaction
-      setTimeout(() => {
-        // Mock results after voting
-        const updatedResults = votingOptions.map(option => {
-          if (option.id === selectedOption) {
-            return { ...option, votes: option.votes + 1 };
-          }
-          return option;
+    setIsVoting(true);
+    // Here you would implement the actual transaction to vote
+    // This will be handled by your voting functionality
+    
+    // Simulating API call
+    setTimeout(() => {
+      setIsVoting(false);
+      setShowVoteDialog(false);
+      // Refresh ballot data after voting
+      if (ballot) {
+        setBallot({
+          ...ballot,
+          totalVotes: ballot.totalVotes + 1,
+          candidates: ballot.candidates.map(c => 
+            c.id === selectedCandidate.id 
+              ? {...c, votes: c.votes + 1} 
+              : c
+          )
         });
-        
-        setResults(updatedResults);
-        setVoted(true);
-        setLoading(false);
-        toast.success("Your vote has been recorded on the blockchain!");
-      }, 2000);
-      
-      // In a real implementation, you would execute the transaction
-      // signAndExecute({
-      //   transactionBlock: tx,
-      //   options: { showEffects: true },
-      // }, {
-      //   onSuccess: () => {
-      //     setVoted(true);
-      //     setLoading(false);
-      //     toast.success("Your vote has been recorded on the blockchain!");
-      //   },
-      //   onError: (err) => {
-      //     console.error(err);
-      //     setLoading(false);
-      //     toast.error("Failed to submit your vote. Please try again.");
-      //   }
-      // });
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-      toast.error("An error occurred while processing your vote");
-    }
+      }
+    }, 1500);
   };
 
-  // Prepare chart data
-  const chartData = {
-    labels: votingOptions.map(option => option.name.split(":")[0]),
-    datasets: [
-      {
-        data: votingOptions.map(option => option.votes),
-        backgroundColor: [
-          "rgba(75, 192, 192, 0.7)",
-          "rgba(153, 102, 255, 0.7)",
-          "rgba(255, 159, 64, 0.7)",
-        ],
-        borderColor: [
-          "rgba(75, 192, 192, 1)",
-          "rgba(153, 102, 255, 1)",
-          "rgba(255, 159, 64, 1)",
-        ],
-        borderWidth: 1,
-      },
-    ],
-  };
+  if (!currentAccount) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Ballot Details</h1>
+          <ConnectButton />
+        </div>
+        
+        <Alert>
+          <AlertDescription>
+            Please connect your wallet to view this ballot.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-gray-100 p-4 md:p-8">
-      <ToastContainer position="top-right" theme="dark" />
-      
-      {/* Header */}
+    <div className="container mx-auto py-8 px-4">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-            SUIVOTE
-          </h1>
-          <p className="text-gray-400">Cast your vote on blockchain proposals using Sui</p>
+          <h1 className="text-3xl font-bold mb-2">Ballot Details</h1>
+          {ballot && <p className="text-muted-foreground">{ballot.title}</p>}
         </div>
         
-        <div className="mt-4 md:mt-0">
-          <ConnectButton className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 transition-all duration-300" />
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate("/ballots")}
+          >
+            Back to Ballots
+          </Button>
+          <ConnectButton />
         </div>
       </div>
       
-      {/* Countdown Timer */}
-      <motion.div 
-        className="bg-gray-800 rounded-xl p-4 mb-8 shadow-lg border border-gray-700"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="flex items-center mb-2">
-          <Clock className="w-5 h-5 mr-2 text-blue-400" />
-          <h2 className="text-xl font-semibold">Voting Ends In</h2>
-        </div>
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="bg-gray-900 rounded-lg p-3">
-            <div className="text-2xl font-bold">{timeLeft.days}</div>
-            <div className="text-xs text-gray-400">Days</div>
-          </div>
-          <div className="bg-gray-900 rounded-lg p-3">
-            <div className="text-2xl font-bold">{timeLeft.hours}</div>
-            <div className="text-xs text-gray-400">Hours</div>
-          </div>
-          <div className="bg-gray-900 rounded-lg p-3">
-            <div className="text-2xl font-bold">{timeLeft.minutes}</div>
-            <div className="text-xs text-gray-400">Minutes</div>
-          </div>
-          <div className="bg-gray-900 rounded-lg p-3">
-            <div className="text-2xl font-bold">{timeLeft.seconds}</div>
-            <div className="text-xs text-gray-400">Seconds</div>
-          </div>
-        </div>
-      </motion.div>
-      
-      {/* Voting Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Voting Options */}
-        <div className="md:col-span-2">
-          <motion.div 
-            className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <div className="flex items-center mb-4">
-              <Vote className="w-5 h-5 mr-2 text-purple-400" />
-              <h2 className="text-xl font-semibold">Cast Your Vote</h2>
+      {loading ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-center items-center h-40">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2">Loading ballot data...</span>
             </div>
-            
-            {votingOptions.map((option) => (
-              <motion.div 
-                key={option.id}
-                className={`mb-4 p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-                  selectedOption === option.id 
-                    ? "border-blue-500 bg-blue-900/20" 
-                    : "border-gray-700 hover:border-gray-500 bg-gray-900/50"
-                }`}
-                onClick={() => !voted && setSelectedOption(option.id)}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium text-lg">{option.name}</h3>
-                  {selectedOption === option.id && (
-                    <motion.div 
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="bg-blue-500 text-white p-1 rounded-full"
-                    >
-                      <Check className="w-4 h-4" />
-                    </motion.div>
+          </CardContent>
+        </Card>
+      ) : error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : !ballot ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Ballot Not Found</AlertTitle>
+          <AlertDescription>
+            The ballot you're looking for could not be found.
+            <Button 
+              variant="link" 
+              className="p-0 h-auto font-normal ml-1" 
+              onClick={() => navigate("/ballots")}
+            >
+              View all ballots
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <div className="space-y-6">
+          {/* Ballot Info */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-2xl">{ballot.title}</CardTitle>
+                  <CardDescription className="mt-2">{ballot.description}</CardDescription>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Badge variant={ballot.isPrivate ? "secondary" : "outline"} className="ml-auto">
+                    {ballot.isPrivate ? (
+                      <>
+                        <Shield className="w-3 h-3 mr-1" />
+                        Private
+                      </>
+                    ) : (
+                      "Public"
+                    )}
+                  </Badge>
+                  {ballot.status !== 'Active' && (
+                    <Badge variant={ballot.status === 'Delisted' ? "destructive" : "outline"}>
+                      {ballot.status}
+                    </Badge>
                   )}
                 </div>
-                <p className="text-gray-400 mt-2">{option.description}</p>
-                
-                {voted && (
-                  <div className="mt-3 bg-gray-800 rounded-lg p-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Current votes</span>
-                      <span className="font-semibold">
-                        {(results || votingOptions).find(v => v.id === option.id)?.votes}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                      <motion.div 
-                      className="bg-blue-500 h-2 rounded-full"
-                      initial={{ width: "0%" }}
-                      animate={{ 
-                        width: `${((results || votingOptions)?.find(v => v.id === option.id)?.votes || 0 / 
-                        (results || votingOptions)?.reduce((acc, curr) => acc + (curr.votes || 0), 0)) * 100}%` 
-                      }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-6 mb-6">
+                <div className="flex items-center">
+                  <Clock className="w-5 h-5 mr-2 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Ends on</div>
+                    <div className="font-medium">
+                      {new Date(ballot.expiration * 1000).toLocaleDateString()}
                     </div>
                   </div>
+                </div>
+                <div className="flex items-center">
+                  <Vote className="w-5 h-5 mr-2 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Total Votes</div>
+                    <div className="font-medium">{ballot.totalVotes}</div>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <User className="w-5 h-5 mr-2 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Creator</div>
+                    <div className="font-medium">
+                      {ballot.creator === currentAccount.address ? "You" : 
+                        `${ballot.creator.substring(0, 6)}...${ballot.creator.substring(ballot.creator.length - 4)}`
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expiration Timer */}
+              {ballot.status === 'Active' && ballot.expiration > Math.floor(Date.now() / 1000) && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium mb-2 flex items-center">
+                    <Clock className="w-4 h-4 mr-2" />
+                    Voting Ends In
+                  </h3>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-muted rounded-lg p-2">
+                      <div className="text-xl font-bold">{timeLeft.days}</div>
+                      <div className="text-xs text-muted-foreground">Days</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-2">
+                      <div className="text-xl font-bold">{timeLeft.hours}</div>
+                      <div className="text-xs text-muted-foreground">Hours</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-2">
+                      <div className="text-xl font-bold">{timeLeft.minutes}</div>
+                      <div className="text-xs text-muted-foreground">Minutes</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-2">
+                      <div className="text-xl font-bold">{timeLeft.seconds}</div>
+                      <div className="text-xs text-muted-foreground">Seconds</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Status Messages */}
+              {ballot.status !== 'Active' && (
+                <Alert className="mb-6">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    {ballot.status === 'Expired' 
+                      ? "This ballot has expired and voting is no longer available." 
+                      : "This ballot has been delisted and is no longer active."}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Candidates Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Candidates</h3>
+                {ballot.candidates.length === 0 ? (
+                  <div className="text-center p-8 border rounded-lg bg-muted/50">
+                    <p className="text-muted-foreground">No candidates available for this ballot.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {ballot.candidates.map((candidate) => (
+                      <div 
+                        key={candidate.id}
+                        className={`p-4 border rounded-lg cursor-pointer transition-all hover:border-primary ${
+                          selectedCandidate?.id === candidate.id ? 'border-primary bg-primary/5' : ''
+                        }`}
+                        onClick={() => ballot.status === 'Active' && handleCandidateSelect(candidate)}
+                      >
+                        <div className="flex items-start">
+                          {candidate.imageUrl && (
+                            <div className="mr-4 flex-shrink-0">
+                              <img 
+                                src={candidate.imageUrl} 
+                                alt={candidate.name} 
+                                className="w-16 h-16 object-cover rounded-md"
+                              />
+                            </div>
+                          )}
+                          <div className="flex-grow">
+                            <h4 className="font-medium">{candidate.name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">{candidate.description}</p>
+                            <div className="mt-2 flex items-center">
+                              <div className="text-sm"><span className="font-medium">{candidate.votes}</span> votes</div>
+                              {ballot.totalVotes > 0 && (
+                                <div className="ml-2 text-xs text-muted-foreground">
+                                  ({((candidate.votes / ballot.totalVotes) * 100).toFixed(1)}%)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {ballot.status === 'Active' && (
+                            <div className="ml-4 flex-shrink-0">
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                selectedCandidate?.id === candidate.id ? 'border-primary' : 'border-muted'
+                              }`}>
+                                {selectedCandidate?.id === candidate.id && (
+                                  <div className="w-3 h-3 rounded-full bg-primary" />
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </motion.div>
-            ))}
-            
-            <motion.button
-              className={`w-full py-3 px-4 rounded-lg font-medium text-center transition-all duration-300 flex items-center justify-center mt-4 ${
-                voted
-                  ? "bg-green-600 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
-              onClick={!voted ? submitVote : undefined}
-              disabled={voted || loading}
-              whileHover={!voted ? { scale: 1.02 } : {}}
-              whileTap={!voted ? { scale: 0.98 } : {}}
+              </div>
+            </CardContent>
+            {ballot.status === 'Active' && (
+              <CardFooter className="flex justify-end">
+                <Button 
+                  onClick={handleVoteClick}
+                  disabled={!selectedCandidate}
+                >
+                  Vote for Selected Candidate
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
+        </div>
+      )}
+      
+      {/* Vote Confirmation Dialog */}
+      <Dialog open={showVoteDialog} onOpenChange={setShowVoteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Your Vote</DialogTitle>
+            <DialogDescription>
+              You are about to vote for a candidate in "{ballot?.title}".
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCandidate && (
+            <div className="p-4 border rounded-lg mt-2">
+              <h3 className="font-semibold">{selectedCandidate.name}</h3>
+              <p className="text-sm mt-1">{selectedCandidate.description}</p>
+              {selectedCandidate.imageUrl && (
+                <img 
+                  src={selectedCandidate.imageUrl} 
+                  alt={selectedCandidate.name} 
+                  className="mt-2 max-h-32 object-cover rounded-md"
+                />
+              )}
+            </div>
+          )}
+          
+          <Alert className="mt-2">
+            <AlertDescription className="text-sm">
+              Once submitted, your vote cannot be changed or revoked.
+            </AlertDescription>
+          </Alert>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowVoteDialog(false)}
+              disabled={isVoting}
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              ) : voted ? (
+              Cancel
+            </Button>
+            <Button 
+              onClick={submitVote}
+              disabled={isVoting}
+            >
+              {isVoting ? (
                 <>
-                  <Check className="w-5 h-5 mr-2" />
-                  Vote Submitted
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
                 </>
               ) : (
-                <>
-                  Submit Vote
-                  <ChevronRight className="w-5 h-5 ml-1" />
-                </>
+                "Submit Vote"
               )}
-            </motion.button>
-          </motion.div>
-        </div>
-        
-        {/* Stats & Info */}
-        <div>
-          <motion.div 
-            className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700 mb-6"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
-            <div className="flex items-center mb-4">
-              <Shield className="w-5 h-5 mr-2 text-green-400" />
-              <h2 className="text-xl font-semibold">Voting Statistics</h2>
-            </div>
-            
-            <div className="mb-6">
-              <Doughnut 
-                data={chartData} 
-                options={{
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                      labels: {
-                        color: '#d1d5db',
-                        padding: 20,
-                        font: {
-                          size: 12
-                        }
-                      }
-                    }
-                  },
-                  cutout: '65%',
-                  animation: {
-                    animateScale: true,
-                    animateRotate: true
-                  }
-                }}
-              />
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Total Votes</span>
-                <span className="font-bold">
-                  {votingOptions.reduce((acc, curr) => acc + curr.votes, 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Participation Rate</span>
-                <span className="font-bold">23.7%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400">Your Status</span>
-                <span className={`font-bold ${voted ? "text-green-400" : "text-yellow-400"}`}>
-                  {voted ? "Voted" : "Not Voted"}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-          >
-            <h2 className="text-xl font-semibold mb-3">About This Vote</h2>
-            <p className="text-gray-400 text-sm">
-              This governance vote will determine the future direction of the protocol. 
-              All votes are recorded on the Sui blockchain for maximum transparency and security.
-            </p>
-            <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/30 text-sm">
-              <p className="text-blue-300">
-                Your vote is secured by blockchain technology and completely anonymous.
-              </p>
-            </div>
-          </motion.div>
-        </div>
-      </div>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

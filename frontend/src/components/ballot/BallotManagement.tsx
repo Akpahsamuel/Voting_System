@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { useState, useEffect } from "react";
+import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
-import { SuiTransactionBlockResponse } from "@mysten/sui/client";
+import { SuiObjectData } from "@mysten/sui/client";
 import { toast } from "sonner";
-import { Ballot, Candidate } from "../../pages/BallotPage";
+import { Candidate } from "../../pages/BallotPage";
 import { 
   MoreHorizontal, 
   Edit, 
@@ -16,7 +16,8 @@ import {
   Loader2,
   Clock,
   Check,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -62,21 +63,41 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 
+interface Ballot {
+  id: string;
+  title: string;
+  description: string;
+  expiration: number;
+  isPrivate: boolean;
+  candidates: Candidate[];
+  totalVotes: number;
+  status: 'Active' | 'Delisted' | 'Expired';
+  creator: string;
+}
+
 interface BallotManagementProps {
-  ballots: Ballot[];
-  isLoading: boolean;
+  ballots?: Ballot[];
+  isLoading?: boolean;
   adminCapId: string | undefined;
   superAdminCapId: string | undefined;
   hasSuperAdminCap: boolean;
 }
 
 const BallotManagement = ({ 
-  ballots, 
-  isLoading, 
+  ballots: propsBallots,
+  isLoading: propsIsLoading = false, 
   adminCapId, 
   superAdminCapId, 
   hasSuperAdminCap 
 }: BallotManagementProps) => {
+  // Use internal state when ballots aren't passed as props
+  const [internalBallots, setInternalBallots] = useState<Ballot[]>([]);
+  const [internalLoading, setInternalLoading] = useState(false);
+  
+  // Determine whether to use props or internal state
+  const ballots = propsBallots || internalBallots;
+  const isLoading = propsIsLoading || internalLoading;
+  
   const [selectedBallot, setSelectedBallot] = useState<Ballot | null>(null);
   const [showCandidatesDialog, setShowCandidatesDialog] = useState(false);
   const [showRemoveCandidateDialog, setShowRemoveCandidateDialog] = useState(false);
@@ -88,8 +109,163 @@ const BallotManagement = ({
   const [newCandidateImageUrl, setNewCandidateImageUrl] = useState("");
   const [showAddCandidateDialog, setShowAddCandidateDialog] = useState(false);
 
-  const packageId = useNetworkVariable("packageId" as any);
+  const packageId = useNetworkVariable("packageId");
+  const dashboardId = useNetworkVariable("dashboardId");
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const suiClient = useSuiClient();
+
+  // Fetch ballots if they aren't passed as props
+  useEffect(() => {
+    if (!propsBallots) {
+      fetchBallots();
+    }
+  }, [propsBallots, dashboardId]);
+  
+  const fetchBallots = async () => {
+    if (!dashboardId) {
+      toast.error("Dashboard ID not found in network config");
+      return;
+    }
+
+    setInternalLoading(true);
+    
+    try {
+      console.log("Fetching ballots from dashboard:", dashboardId);
+      
+      // Get dashboard object to fetch ballot IDs
+      const dashboardResponse = await suiClient.getObject({
+        id: dashboardId,
+        options: {
+          showContent: true
+        }
+      });
+      
+      if (!dashboardResponse?.data || !dashboardResponse.data.content) {
+        throw new Error("Dashboard not found or has no content");
+      }
+
+      // Extract ballot IDs from dashboard
+      const fields = dashboardResponse.data.content.dataType === "moveObject" 
+        ? dashboardResponse.data.content.fields as any 
+        : null;
+      
+      if (!fields) {
+        throw new Error("Invalid dashboard data format");
+      }
+      
+      console.log("Dashboard fields:", fields);
+      
+      // Extract ballot IDs (proposals_ids in the contract)
+      let ballotIds: string[] = [];
+      
+      if (fields.proposals_ids) {
+        if (Array.isArray(fields.proposals_ids)) {
+          ballotIds = fields.proposals_ids;
+        } else if (fields.proposals_ids.vec && Array.isArray(fields.proposals_ids.vec)) {
+          ballotIds = fields.proposals_ids.vec;
+        }
+      }
+      
+      console.log("Found ballot IDs:", ballotIds);
+      
+      if (ballotIds.length === 0) {
+        setInternalBallots([]);
+        setInternalLoading(false);
+        return; // No ballots to fetch
+      }
+      
+      // Fetch each ballot object
+      const fetchedBallots: Ballot[] = [];
+      
+      for (const id of ballotIds) {
+        try {
+          const response = await suiClient.getObject({
+            id,
+            options: {
+              showContent: true
+            }
+          });
+
+          if (response.data && response.data.content?.dataType === "moveObject") {
+            const fields = response.data.content.fields as any;
+            
+            // Parse candidates data
+            let candidatesData = [];
+            if (fields.candidates) {
+              if (Array.isArray(fields.candidates)) {
+                candidatesData = fields.candidates;
+              } else if (fields.candidates.vec && Array.isArray(fields.candidates.vec)) {
+                candidatesData = fields.candidates.vec;
+              }
+            }
+            
+            // Parse candidates
+            const candidates: Candidate[] = [];
+            for (let i = 0; i < candidatesData.length; i++) {
+              const candidate = candidatesData[i];
+              
+              if (!candidate) continue;
+              
+              // Extract image URL which might be in different formats
+              let imageUrl = undefined;
+              if (candidate.image_url) {
+                if (typeof candidate.image_url === 'string') {
+                  imageUrl = candidate.image_url;
+                } else if (candidate.image_url.some) {
+                  // Handle Option<String> from Sui Move
+                  imageUrl = candidate.image_url.some || undefined;
+                }
+              }
+              
+              candidates.push({
+                id: Number(candidate.id || 0),
+                name: candidate.name || "",
+                description: candidate.description || "",
+                votes: Number(candidate.vote_count || 0),
+                imageUrl: imageUrl
+              });
+            }
+            
+            // Determine ballot status
+            let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
+            const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
+            
+            if (fields.status?.fields?.name === "Delisted") {
+              status = 'Delisted';
+            } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+              status = 'Expired';
+            }
+            
+            // Create ballot object
+            const ballot: Ballot = {
+              id: response.data.objectId,
+              title: fields.title || "Untitled Ballot",
+              description: fields.description || "No description",
+              expiration: Number(fields.expiration || 0),
+              isPrivate: Boolean(fields.is_private),
+              candidates,
+              totalVotes: Number(fields.total_votes || 0),
+              status,
+              creator: fields.creator || ""
+            };
+            
+            fetchedBallots.push(ballot);
+          }
+        } catch (err) {
+          console.error(`Error fetching ballot ${id}:`, err);
+          // Continue with other ballots
+        }
+      }
+      
+      console.log("Fetched ballots:", fetchedBallots);
+      setInternalBallots(fetchedBallots);
+    } catch (err) {
+      console.error("Error fetching ballots:", err);
+      toast.error("Failed to load ballots");
+    } finally {
+      setInternalLoading(false);
+    }
+  };
 
   const handleViewCandidates = (ballot: Ballot) => {
     setSelectedBallot(ballot);
@@ -117,25 +293,25 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::remove_candidate_super`,
           arguments: [
-            tx.object(selectedBallot.id),
+            tx.pure.id(selectedBallot.id),
             tx.object(superAdminCapId),
-            tx.pure(selectedCandidate.id),
+            tx.pure.u64(selectedCandidate.id),
           ],
         });
       } else if (adminCapId) {
         tx.moveCall({
           target: `${packageId}::ballot::remove_candidate`,
           arguments: [
-            tx.object(selectedBallot.id),
+            tx.pure.id(selectedBallot.id),
             tx.object(adminCapId),
-            tx.pure(selectedCandidate.id),
+            tx.pure.u64(selectedCandidate.id),
           ],
         });
       }
 
       signAndExecute(
         {
-          transaction: tx,
+          transaction: tx.serialize(),
         },
         {
           onSuccess: () => {
@@ -188,7 +364,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::set_ballot_delisted_status_super`,
           arguments: [
-            tx.object(selectedBallot.id),
+            tx.pure.id(selectedBallot.id),
             tx.object(superAdminCapId),
           ],
         });
@@ -196,7 +372,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::set_ballot_delisted_status`,
           arguments: [
-            tx.object(selectedBallot.id),
+            tx.pure.id(selectedBallot.id),
             tx.object(adminCapId),
           ],
         });
@@ -204,7 +380,7 @@ const BallotManagement = ({
 
       signAndExecute(
         {
-          transaction: tx,
+          transaction: tx.serialize(),
         },
         {
           onSuccess: () => {
@@ -259,22 +435,22 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_with_image_super`,
             arguments: [
-              tx.object(selectedBallot.id),
+              tx.pure.id(selectedBallot.id),
               tx.object(superAdminCapId),
-              tx.pure(newCandidateName),
-              tx.pure(newCandidateDescription),
-              tx.pure(newCandidateImageUrl),
+              tx.pure.string(newCandidateName),
+              tx.pure.string(newCandidateDescription),
+              tx.pure.string(newCandidateImageUrl),
             ],
           });
         } else if (adminCapId) {
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_with_image`,
             arguments: [
-              tx.object(selectedBallot.id),
+              tx.pure.id(selectedBallot.id),
               tx.object(adminCapId),
-              tx.pure(newCandidateName),
-              tx.pure(newCandidateDescription),
-              tx.pure(newCandidateImageUrl),
+              tx.pure.string(newCandidateName),
+              tx.pure.string(newCandidateDescription),
+              tx.pure.string(newCandidateImageUrl),
             ],
           });
         }
@@ -284,20 +460,20 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_super`,
             arguments: [
-              tx.object(selectedBallot.id),
+              tx.pure.id(selectedBallot.id),
               tx.object(superAdminCapId),
-              tx.pure(newCandidateName),
-              tx.pure(newCandidateDescription),
+              tx.pure.string(newCandidateName),
+              tx.pure.string(newCandidateDescription),
             ],
           });
         } else if (adminCapId) {
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate`,
             arguments: [
-              tx.object(selectedBallot.id),
+              tx.pure.id(selectedBallot.id),
               tx.object(adminCapId),
-              tx.pure(newCandidateName),
-              tx.pure(newCandidateDescription),
+              tx.pure.string(newCandidateName),
+              tx.pure.string(newCandidateDescription),
             ],
           });
         }
@@ -305,7 +481,7 @@ const BallotManagement = ({
 
       signAndExecute(
         {
-          transaction: tx,
+          transaction: tx.serialize(),
         },
         {
           onSuccess: () => {
@@ -358,6 +534,10 @@ const BallotManagement = ({
     }
   };
 
+  const handleRefreshBallots = () => {
+    fetchBallots();
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -377,11 +557,23 @@ const BallotManagement = ({
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Ballot Management</CardTitle>
-          <CardDescription>
-            Manage existing ballots and their candidates
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Ballot Management</CardTitle>
+            <CardDescription>
+              Manage existing ballots and their candidates
+            </CardDescription>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefreshBallots}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent>
           {ballots.length === 0 ? (

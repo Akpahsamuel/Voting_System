@@ -1,11 +1,6 @@
-import { useState } from "react";
-import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { useState, useEffect } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
-import { Transaction } from "@mysten/sui/transactions";
-import { useNetworkVariable } from "../../config/networkConfig";
-import { SuiTransactionBlockResponse } from "@mysten/sui/client";
-import { toast } from "sonner";
-import { Ballot, Candidate } from "../../pages/BallotPage";
+import { useBallotVotes } from "../../hooks/useBallotVotes";
 import { 
   Clock, 
   CheckCircle2, 
@@ -13,7 +8,6 @@ import {
   ChevronRight, 
   Loader2,
   Vote,
-  Shield,
   Lock
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -27,7 +21,7 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { Separator } from "../ui/separator";
 import {
   Dialog,
@@ -41,101 +35,37 @@ import {
 interface BallotVotingProps {
   ballots: Ballot[];
   isLoading: boolean;
+  onViewBallot?: (ballot: Ballot) => void;
 }
 
-const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
+const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) => {
   const [selectedBallot, setSelectedBallot] = useState<Ballot | null>(null);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  const [isVoting, setIsVoting] = useState(false);
-  const [showVoteDialog, setShowVoteDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({});
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'expired'>('all');
 
   const account = useCurrentAccount();
-  const packageId = useNetworkVariable("packageId" as any);
-  const dashboardId = useNetworkVariable("dashboardId" as any);
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const { fetchBallotVotes } = useBallotVotes();
 
-  const handleVoteClick = (ballot: Ballot) => {
-    setSelectedBallot(ballot);
-    setSelectedCandidate(null);
-    setShowVoteDialog(true);
-  };
+  useEffect(() => {
+    const checkVotedBallots = async () => {
+      if (account) {
+        try {
+          const votedBallots = await fetchBallotVotes();
+          console.log("User has voted on ballots:", votedBallots);
+          setHasVoted(votedBallots);
+        } catch (error) {
+          console.error("Error fetching ballot votes:", error);
+        }
+      }
+    };
 
-  const handleCandidateSelect = (candidate: Candidate) => {
-    setSelectedCandidate(candidate);
-  };
+    checkVotedBallots();
+  }, [account, fetchBallotVotes, ballots]);
 
   const handleViewResults = (ballot: Ballot) => {
     setSelectedBallot(ballot);
     setShowResultsDialog(true);
-  };
-
-  const submitVote = async () => {
-    if (!selectedBallot || !selectedCandidate || !account) {
-      toast.error("Missing required information");
-      return;
-    }
-
-    setIsVoting(true);
-
-    try {
-      const tx = new Transaction();
-      
-      tx.moveCall({
-        target: `${packageId}::ballot::vote_for_candidate`,
-        arguments: [
-          tx.object(selectedBallot.id),
-          tx.object(dashboardId),
-          tx.pure(selectedCandidate.id),
-        ],
-      });
-
-      signAndExecute(
-        {
-          transaction: tx,
-        },
-        {
-          onSuccess: () => {
-            toast.success(`Vote submitted for ${selectedCandidate.name}`);
-            setShowVoteDialog(false);
-            setIsVoting(false);
-            
-            // Mark this ballot as voted
-            setHasVoted({
-              ...hasVoted,
-              [selectedBallot.id]: true
-            });
-            
-            // Update the UI to show the vote
-            // In a real implementation, we would fetch the updated ballot data
-            if (selectedBallot && selectedCandidate) {
-              const updatedCandidates = selectedBallot.candidates.map(c => {
-                if (c.id === selectedCandidate.id) {
-                  return { ...c, votes: c.votes + 1 };
-                }
-                return c;
-              });
-              
-              setSelectedBallot({
-                ...selectedBallot,
-                candidates: updatedCandidates,
-                totalVotes: selectedBallot.totalVotes + 1
-              });
-            }
-          },
-          onError: (error) => {
-            console.error("Failed to submit vote:", error);
-            toast.error("Failed to submit vote");
-            setIsVoting(false);
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error submitting vote:", error);
-      toast.error("An error occurred while submitting your vote");
-      setIsVoting(false);
-    }
   };
 
   const getTimeLeft = (expirationTimestamp: number) => {
@@ -181,6 +111,13 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
     };
   };
 
+  const filteredBallots = ballots.filter(ballot => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'active') return ballot.status === 'Active';
+    if (activeFilter === 'expired') return ballot.status === 'Expired' || ballot.status === 'Delisted';
+    return true;
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -212,24 +149,45 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
 
   return (
     <>
+      <div className="mb-6">
+        <Tabs 
+          defaultValue="all" 
+          onValueChange={(value) => setActiveFilter(value as 'all' | 'active' | 'expired')}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
+            <TabsTrigger value="all">All Ballots</TabsTrigger>
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="expired">Expired/Delisted</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {ballots.map((ballot) => (
+        {filteredBallots.map((ballot) => (
           <motion.div
             key={ballot.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="h-full flex flex-col">
+            <Card className={`h-full flex flex-col ${ballot.status !== 'Active' ? 'opacity-75' : ''}`}>
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-xl">{ballot.title}</CardTitle>
-                  {ballot.isPrivate && (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
-                      <Lock className="h-3 w-3 mr-1" />
-                      Private
-                    </Badge>
-                  )}
+                  <div className="flex flex-col gap-1 items-end">
+                    {ballot.isPrivate && (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
+                        <Lock className="h-3 w-3 mr-1" />
+                        Private
+                      </Badge>
+                    )}
+                    {ballot.status !== 'Active' && (
+                      <Badge variant={ballot.status === 'Delisted' ? "destructive" : "secondary"}>
+                        {ballot.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <CardDescription>
                   {ballot.description.length > 100 
@@ -241,7 +199,10 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
                 <div className="flex items-center mb-4">
                   <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    Time left: {getTimeLeft(ballot.expiration)}
+                    {ballot.status === 'Active' 
+                      ? `Time left: ${getTimeLeft(ballot.expiration)}`
+                      : `Ended: ${new Date(ballot.expiration).toLocaleDateString()}`
+                    }
                   </span>
                 </div>
                 
@@ -264,10 +225,15 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       You have voted on this ballot
                     </div>
-                  ) : (
+                  ) : ballot.status === 'Active' ? (
                     <div className="flex items-center">
                       <Vote className="h-4 w-4 mr-2" />
                       Cast your vote for one of the candidates
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      Voting is no longer available
                     </div>
                   )}
                 </div>
@@ -282,8 +248,8 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
                 </Button>
                 <Button 
                   size="sm"
-                  disabled={hasVoted[ballot.id]}
-                  onClick={() => handleVoteClick(ballot)}
+                  disabled={hasVoted[ballot.id] || ballot.status !== 'Active'}
+                  onClick={() => onViewBallot && onViewBallot(ballot)}
                 >
                   {hasVoted[ballot.id] ? "Voted" : "Vote Now"}
                   <ChevronRight className="h-4 w-4 ml-1" />
@@ -293,80 +259,6 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
           </motion.div>
         ))}
       </div>
-
-      {/* Vote Dialog */}
-      <Dialog open={showVoteDialog} onOpenChange={setShowVoteDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{selectedBallot?.title}</DialogTitle>
-            <DialogDescription>
-              {selectedBallot?.description}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            {selectedBallot?.candidates.map((candidate) => (
-              <div 
-                key={candidate.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                  selectedCandidate?.id === candidate.id 
-                    ? 'border-primary bg-primary/5' 
-                    : 'hover:border-primary/50'
-                }`}
-                onClick={() => handleCandidateSelect(candidate)}
-              >
-                <div className="flex items-start">
-                  {candidate.imageUrl && (
-                    <div className="mr-4 flex-shrink-0">
-                      <img 
-                        src={candidate.imageUrl} 
-                        alt={candidate.name}
-                        className="w-20 h-20 object-cover rounded-md"
-                      />
-                    </div>
-                  )}
-                  <div className="flex-grow">
-                    <h3 className="font-medium">{candidate.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {candidate.description}
-                    </p>
-                  </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      selectedCandidate?.id === candidate.id 
-                        ? 'border-primary' 
-                        : 'border-muted'
-                    }`}>
-                      {selectedCandidate?.id === candidate.id && (
-                        <div className="w-3 h-3 rounded-full bg-primary" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowVoteDialog(false)} disabled={isVoting}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={submitVote}
-              disabled={isVoting || !selectedCandidate}
-            >
-              {isVoting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit Vote"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Results Dialog */}
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
@@ -381,7 +273,7 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-medium mb-4">Vote Distribution</h3>
-              {selectedBallot && (
+              {selectedBallot && selectedBallot.candidates.length > 0 ? (
                 <div className="w-full h-64">
                   <Doughnut 
                     data={getChartData(selectedBallot)} 
@@ -391,50 +283,60 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
                     }}
                   />
                 </div>
+              ) : (
+                <div className="flex items-center justify-center h-64 bg-muted rounded-lg">
+                  <p className="text-muted-foreground">No candidates available</p>
+                </div>
               )}
             </div>
             
             <div>
               <h3 className="font-medium mb-4">Candidate Rankings</h3>
-              <div className="space-y-3">
-                {selectedBallot?.candidates
-                  .slice()
-                  .sort((a, b) => b.votes - a.votes)
-                  .map((candidate, index) => (
-                    <div key={candidate.id} className="flex items-center">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                        <span className="text-xs font-medium">{index + 1}</span>
-                      </div>
-                      <div className="flex-grow">
-                        <div className="text-sm font-medium">{candidate.name}</div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-                          <div 
-                            className="bg-primary h-2.5 rounded-full" 
-                            style={{ 
-                              width: `${selectedBallot.totalVotes > 0 
-                                ? (candidate.votes / selectedBallot.totalVotes) * 100 
-                                : 0}%` 
-                            }}
-                          ></div>
+              {selectedBallot && selectedBallot.candidates.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedBallot?.candidates
+                    .slice()
+                    .sort((a, b) => b.votes - a.votes)
+                    .map((candidate, index) => (
+                      <div key={candidate.id} className="flex items-center">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                          <span className="text-xs font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-grow">
+                          <div className="text-sm font-medium">{candidate.name}</div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                            <div 
+                              className="bg-primary h-2.5 rounded-full" 
+                              style={{ 
+                                width: `${selectedBallot.totalVotes > 0 
+                                  ? (candidate.votes / selectedBallot.totalVotes) * 100 
+                                  : 0}%` 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div className="ml-3 text-sm font-medium">
+                          {candidate.votes} votes
                         </div>
                       </div>
-                      <div className="ml-3 text-sm font-medium">
-                        {candidate.votes} votes
-                      </div>
-                    </div>
-                  ))
-                }
-              </div>
+                    ))
+                  }
+                </div>
+              ) : (
+                <div className="p-6 text-center border rounded-lg">
+                  <p className="text-muted-foreground">No candidates have been added yet</p>
+                </div>
+              )}
               
               <div className="mt-6 p-3 bg-muted rounded-md">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Total Votes</span>
-                  <span className="font-medium">{selectedBallot?.totalVotes}</span>
+                  <span className="font-medium">{selectedBallot?.totalVotes || 0}</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm">Time Left</span>
+                  <span className="text-sm">Status</span>
                   <span className="font-medium">
-                    {selectedBallot && getTimeLeft(selectedBallot.expiration)}
+                    {selectedBallot?.status || 'Unknown'}
                   </span>
                 </div>
               </div>
@@ -445,10 +347,10 @@ const BallotVoting = ({ ballots, isLoading }: BallotVotingProps) => {
             <Button variant="outline" onClick={() => setShowResultsDialog(false)}>
               Close
             </Button>
-            {!hasVoted[selectedBallot?.id || ""] && (
+            {selectedBallot && !hasVoted[selectedBallot.id] && selectedBallot.status === 'Active' && (
               <Button onClick={() => {
                 setShowResultsDialog(false);
-                if (selectedBallot) handleVoteClick(selectedBallot);
+                if (selectedBallot && onViewBallot) onViewBallot(selectedBallot);
               }}>
                 Vote Now
               </Button>

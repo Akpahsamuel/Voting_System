@@ -36,7 +36,7 @@ const Navbar = () => {
   const navLinks = [
     { to: "/", icon: Home, label: "Home" },
     { to: "/proposal", icon: FileText, label: "Proposals" },
-    { to: "/ballot", icon: Vote, label: "Ballots" },
+    { to: "/ballots", icon: Vote, label: "Ballot System" },
     { to: "/statistics", icon: BarChart2, label: "Statistics" },
     // Admin link will be conditionally added below
   ];
@@ -144,6 +144,22 @@ const Navbar = () => {
                 />
               </NavLink>
             ))}
+            
+            {/* Quick Ballot Actions for Mobile */}
+            {hasAdminAccess && (
+              <div className="border-t border-white/10 pt-4 w-4/5 flex flex-col gap-3">
+                <button 
+                  className="flex items-center gap-3 px-6 py-3 rounded-md text-lg font-medium justify-center bg-gradient-to-r from-blue-600/30 to-purple-600/30 text-white/90 hover:text-white"
+                  onClick={() => {
+                    navigate("/ballots/create");
+                    toggleMobileMenu();
+                  }}
+                >
+                  <Vote size={22} />
+                  <span>Create Ballot</span>
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
