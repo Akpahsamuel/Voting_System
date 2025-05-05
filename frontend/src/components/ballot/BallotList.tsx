@@ -266,9 +266,11 @@ export default function BallotList({ suiClient }: BallotListProps) {
                   <div>
                     <span className="font-medium">{ballot.candidateCount}</span> candidates
                   </div>
-                  <div>
-                    <span className="font-medium">{ballot.totalVotes}</span> votes
-                  </div>
+                  {ballot.status !== 'Active' && (
+                    <div>
+                      <span className="font-medium">{ballot.totalVotes}</span> votes
+                    </div>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">

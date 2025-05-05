@@ -781,12 +781,12 @@ const BallotManagement = ({
                 {ballots.map((ballot) => (
                   <TableRow key={ballot.id}>
                     <TableCell className="font-medium">{ballot.title}</TableCell>
-                    <TableCell>{getStatusBadge(ballot.status)}</TableCell>
+                    <TableCell>{getStatusBadge(ballot.status === 'Active' && ballot.expiration < Date.now() ? 'Expired' : ballot.status)}</TableCell>
                     <TableCell>
                       {formatDate(ballot.expiration)}
                     </TableCell>
                     <TableCell>{ballot.candidates.length}</TableCell>
-                    <TableCell>{ballot.totalVotes}</TableCell>
+                    <TableCell>{(ballot.status === 'Active' && ballot.expiration < Date.now()) || ballot.status !== 'Active' ? ballot.totalVotes : '-'}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -884,11 +884,13 @@ const BallotManagement = ({
                       )}
                     </div>
                     <p className="mt-2">{candidate.description}</p>
-                    <div className="mt-4 flex items-center">
-                      <Badge variant="outline" className="mr-2">
-                        {candidate.votes} votes
-                      </Badge>
-                    </div>
+                    {selectedBallot.status !== 'Active' && (
+                      <div className="mt-4 flex items-center">
+                        <Badge variant="outline" className="mr-2">
+                          {candidate.votes} votes
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>

@@ -201,13 +201,15 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Total votes</span>
-                    <span className="font-medium">{ballot.totalVotes}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
                     <span>Candidates</span>
                     <span className="font-medium">{ballot.candidates.length}</span>
                   </div>
+                  {ballot.status !== 'Active' && (
+                    <div className="flex justify-between text-sm">
+                      <span>Total votes</span>
+                      <span className="font-medium">{ballot.totalVotes}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <Separator className="my-4" />
@@ -306,7 +308,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
               <h3 className="font-medium mb-4">Candidate Rankings</h3>
               {selectedBallot && selectedBallot.candidates.length > 0 ? (
                 <div className="space-y-3">
-                  {selectedBallot?.candidates
+                  {selectedBallot?.status !== 'Active' && selectedBallot?.candidates
                     .slice()
                     .sort((a, b) => b.votes - a.votes)
                     .map((candidate, index) => (

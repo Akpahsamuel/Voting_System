@@ -894,14 +894,16 @@ export default function BallotPage() {
                             <div className="flex-grow">
                               <h4 className="font-medium text-lg">{candidate.name || "Unnamed Candidate"}</h4>
                               <p className="text-sm text-muted-foreground mt-1">{candidate.description || "No description available"}</p>
-                              <div className="mt-2 flex items-center">
-                                <div className="text-sm"><span className="font-medium">{candidate.votes}</span> votes</div>
-                                {ballot.totalVotes > 0 && (
-                                  <div className="ml-2 text-xs text-muted-foreground">
-                                    ({((candidate.votes / ballot.totalVotes) * 100).toFixed(1)}%)
-                                  </div>
-                                )}
-                              </div>
+                              {ballot.status !== 'Active' && (
+                                <div className="mt-2 flex items-center">
+                                  <div className="text-sm"><span className="font-medium">{candidate.votes}</span> votes</div>
+                                  {ballot.totalVotes > 0 && (
+                                    <div className="ml-2 text-xs text-muted-foreground">
+                                      ({((candidate.votes / ballot.totalVotes) * 100).toFixed(1)}%)
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="ml-4 flex-shrink-0">
                               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
@@ -1027,9 +1029,11 @@ export default function BallotPage() {
                 <div>
                   <h3 className="font-semibold text-xl">{selectedCandidate.name || "Unnamed Candidate"}</h3>
                   <p className="text-sm mt-2">{selectedCandidate.description || "No description available"}</p>
-                  <div className="mt-3 text-sm font-medium">
-                    Current Votes: <span className="text-primary">{selectedCandidate.votes}</span>
-                  </div>
+                  {ballot && ballot.status !== 'Active' && (
+                    <div className="mt-3 text-sm font-medium">
+                      Current Votes: <span className="text-primary">{selectedCandidate.votes}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
