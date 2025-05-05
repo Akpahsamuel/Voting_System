@@ -19,7 +19,7 @@ import {
   X,
   RefreshCw
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatDate } from "../../utils/formatUtils";
 
 // Import shadcn components
 import { Button } from "../ui/button";
@@ -103,6 +103,8 @@ const BallotManagement = ({
   const [showRemoveCandidateDialog, setShowRemoveCandidateDialog] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [showDelistDialog, setShowDelistDialog] = useState(false);
+  const [showActivateDialog, setShowActivateDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [newCandidateName, setNewCandidateName] = useState("");
   const [newCandidateDescription, setNewCandidateDescription] = useState("");
@@ -114,12 +116,15 @@ const BallotManagement = ({
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const suiClient = useSuiClient();
 
+  // State to trigger refreshes
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   // Fetch ballots if they aren't passed as props
   useEffect(() => {
     if (!propsBallots) {
       fetchBallots();
     }
-  }, [propsBallots, dashboardId]);
+  }, [propsBallots, dashboardId, refreshTrigger]);
   
   const fetchBallots = async () => {
     if (!dashboardId) {
@@ -328,6 +333,9 @@ const BallotManagement = ({
                 ...selectedBallot,
                 candidates: updatedCandidates
               });
+              
+              // Refresh data after a short delay
+              setTimeout(() => triggerRefresh(), 1000);
             }
           },
           onError: (error) => {
@@ -347,6 +355,16 @@ const BallotManagement = ({
   const handleDelistBallot = (ballot: Ballot) => {
     setSelectedBallot(ballot);
     setShowDelistDialog(true);
+  };
+
+  const handleActivateBallot = (ballot: Ballot) => {
+    setSelectedBallot(ballot);
+    setShowActivateDialog(true);
+  };
+
+  const handleDeleteBallot = (ballot: Ballot) => {
+    setSelectedBallot(ballot);
+    setShowDeleteDialog(true);
   };
 
   const confirmDelistBallot = async () => {
@@ -394,6 +412,22 @@ const BallotManagement = ({
                 ...selectedBallot,
                 status: 'Delisted'
               });
+              
+              // Update the ballots list
+              if (propsBallots) {
+                // If using props, we can't update the parent state directly
+                // Notify the user that the action was successful
+                toast.success("Ballot status updated successfully");
+              } else {
+                // Update our internal state and trigger a refresh
+                setInternalBallots(prevBallots => 
+                  prevBallots.map(b => 
+                    b.id === selectedBallot.id ? {...b, status: 'Delisted'} : b
+                  )
+                );
+                // Refresh data after a short delay
+                setTimeout(() => triggerRefresh(), 1000);
+              }
             }
           },
           onError: (error) => {
@@ -406,6 +440,145 @@ const BallotManagement = ({
     } catch (error) {
       console.error("Error delisting ballot:", error);
       toast.error("An error occurred while delisting the ballot");
+      setIsProcessing(false);
+    }
+  };
+
+  const confirmActivateBallot = async () => {
+    if (!selectedBallot || (!adminCapId && !superAdminCapId)) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const tx = new Transaction();
+      
+      if (hasSuperAdminCap && superAdminCapId) {
+        tx.moveCall({
+          target: `${packageId}::ballot::set_ballot_active_status_super`,
+          arguments: [
+            tx.object(selectedBallot.id),
+            tx.object(superAdminCapId),
+          ],
+        });
+      } else if (adminCapId) {
+        tx.moveCall({
+          target: `${packageId}::ballot::set_ballot_active_status`,
+          arguments: [
+            tx.object(selectedBallot.id),
+            tx.object(adminCapId),
+          ],
+        });
+      }
+
+      signAndExecute(
+        {
+          transaction: tx.serialize(),
+        },
+        {
+          onSuccess: () => {
+            toast.success(`Activated ballot: ${selectedBallot.title}`);
+            setShowActivateDialog(false);
+            setIsProcessing(false);
+            
+            // Update the UI by changing the ballot status
+            if (selectedBallot) {
+              setSelectedBallot({
+                ...selectedBallot,
+                status: 'Active'
+              });
+              
+              // Update the ballots list
+              if (propsBallots) {
+                // If using props, we can't update the parent state directly
+                toast.success("Ballot status updated successfully");
+              } else {
+                // Update our internal state
+                setInternalBallots(prevBallots => 
+                  prevBallots.map(b => 
+                    b.id === selectedBallot.id ? {...b, status: 'Active'} : b
+                  )
+                );
+                // Refresh data after a short delay
+                setTimeout(() => triggerRefresh(), 1000);
+              }
+            }
+          },
+          onError: (error) => {
+            console.error("Failed to activate ballot:", error);
+            toast.error("Failed to activate ballot");
+            setIsProcessing(false);
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error activating ballot:", error);
+      toast.error("An error occurred while activating the ballot");
+      setIsProcessing(false);
+    }
+  };
+
+  const confirmDeleteBallot = async () => {
+    if (!selectedBallot || !superAdminCapId) {
+      toast.error("Only super admins can delete ballots");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const tx = new Transaction();
+      
+      // Only super admins can remove ballots
+      if (hasSuperAdminCap && superAdminCapId) {
+        tx.moveCall({
+          target: `${packageId}::ballot::remove_ballot`,
+          arguments: [
+            tx.object(selectedBallot.id),
+            tx.object(superAdminCapId),
+          ],
+        });
+      } else {
+        toast.error("Only super admins can delete ballots");
+        setIsProcessing(false);
+        return;
+      }
+
+      signAndExecute(
+        {
+          transaction: tx.serialize(),
+        },
+        {
+          onSuccess: () => {
+            toast.success(`Deleted ballot: ${selectedBallot.title}`);
+            setShowDeleteDialog(false);
+            setIsProcessing(false);
+            
+            // Update the UI by removing the ballot
+            if (propsBallots) {
+              // If using props, we can't update the parent state directly
+              toast.success("Ballot deleted successfully");
+            } else {
+              // Update our internal state
+              setInternalBallots(prevBallots => 
+                prevBallots.filter(b => b.id !== selectedBallot.id)
+              );
+              // Refresh data after a short delay
+              setTimeout(() => triggerRefresh(), 1000);
+            }
+          },
+          onError: (error) => {
+            console.error("Failed to delete ballot:", error);
+            toast.error("Failed to delete ballot");
+            setIsProcessing(false);
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error deleting ballot:", error);
+      toast.error("An error occurred while deleting the ballot");
       setIsProcessing(false);
     }
   };
@@ -505,6 +678,9 @@ const BallotManagement = ({
                 ...selectedBallot,
                 candidates: [...selectedBallot.candidates, newCandidate]
               });
+              
+              // Refresh data after a short delay
+              setTimeout(() => triggerRefresh(), 1000);
             }
           },
           onError: (error) => {
@@ -536,6 +712,11 @@ const BallotManagement = ({
 
   const handleRefreshBallots = () => {
     fetchBallots();
+  };
+
+  // Helper function to trigger a refresh
+  const triggerRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   if (isLoading) {
@@ -598,7 +779,7 @@ const BallotManagement = ({
                     <TableCell className="font-medium">{ballot.title}</TableCell>
                     <TableCell>{getStatusBadge(ballot.status)}</TableCell>
                     <TableCell>
-                      {new Date(ballot.expiration).toLocaleDateString()}
+                      {formatDate(ballot.expiration)}
                     </TableCell>
                     <TableCell>{ballot.candidates.length}</TableCell>
                     <TableCell>{ballot.totalVotes}</TableCell>
@@ -631,6 +812,22 @@ const BallotManagement = ({
                                 Delist Ballot
                               </DropdownMenuItem>
                             </>
+                          )}
+                          {ballot.status === 'Delisted' && (
+                            <DropdownMenuItem onClick={() => handleActivateBallot(ballot)}>
+                              <Check className="mr-2 h-4 w-4 text-green-600" />
+                              Activate Ballot
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          {hasSuperAdminCap && (
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteBallot(ballot)}
+                              className="text-red-600"
+                            >
+                              <Trash className="mr-2 h-4 w-4" />
+                              Delete Ballot
+                            </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -732,30 +929,90 @@ const BallotManagement = ({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delist Ballot Confirmation Dialog */}
+      {/* Delist Ballot Dialog */}
       <AlertDialog open={showDelistDialog} onOpenChange={setShowDelistDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delist Ballot</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delist {selectedBallot?.title}?
-              This will prevent any further voting on this ballot.
+              Are you sure you want to delist this ballot? 
+              This will prevent users from voting on it, but existing votes will be preserved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={confirmDelistBallot}
+              onClick={confirmDelistBallot} 
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700"
             >
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Delisting...
+                  Processing...
                 </>
               ) : (
-                "Delist"
+                "Delist Ballot"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Activate Ballot Dialog */}
+      <AlertDialog open={showActivateDialog} onOpenChange={setShowActivateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Activate Ballot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to activate this ballot? 
+              This will make it available for users to vote on it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmActivateBallot} 
+              disabled={isProcessing}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Activate Ballot"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Ballot Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ballot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this ballot? 
+              This action cannot be undone and all votes will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteBallot} 
+              disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Delete Ballot"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

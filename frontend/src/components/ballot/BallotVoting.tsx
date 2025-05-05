@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useBallotVotes } from "../../hooks/useBallotVotes";
+import { formatDate, formatTimeRemaining, isValidTimestamp } from "../../utils/formatUtils";
 import { 
   Clock, 
   CheckCircle2, 
@@ -8,8 +9,10 @@ import {
   ChevronRight, 
   Loader2,
   Vote,
-  Lock
+  Lock,
+  ExternalLink
 } from "lucide-react";
+import { getObjectUrl, openInExplorer } from "../../utils/explorerUtils";
 import { motion } from "framer-motion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -69,20 +72,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
     setShowResultsDialog(true);
   };
 
-  const getTimeLeft = (expirationTimestamp: number) => {
-    const now = Date.now();
-    const timeLeft = expirationTimestamp - now;
-    
-    if (timeLeft <= 0) {
-      return "Expired";
-    }
-    
-    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${days}d ${hours}h ${minutes}m`;
-  };
+
 
   const getChartData = (ballot: Ballot) => {
     return {
@@ -201,8 +191,10 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                   <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
                     {ballot.status === 'Active' 
-                      ? `Time left: ${getTimeLeft(ballot.expiration)}`
-                      : `Ended: ${new Date(ballot.expiration).toLocaleDateString()}`
+                      ? isValidTimestamp(ballot.expiration) 
+                        ? `Time left: ${formatTimeRemaining(ballot.expiration)}` 
+                        : "Invalid expiration date"
+                      : `Ended: ${formatDate(ballot.expiration)}`
                     }
                   </span>
                 </div>
@@ -239,26 +231,40 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                   )}
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between pt-2">
+              <CardFooter className="flex flex-col gap-2 pt-2">
+                <div className="flex justify-between w-full">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleViewResults(ballot)}
+                  >
+                    View Results
+                  </Button>
+                  <Button 
+                    size="sm"
+                    disabled={hasVoted[ballot.id] || ballot.status !== 'Active'}
+                    onClick={() => {
+                      if (onViewBallot) {
+                        console.log("Navigating to ballot:", ballot.id);
+                        onViewBallot(ballot);
+                      }
+                    }}
+                  >
+                    {hasVoted[ballot.id] ? "Voted" : "Vote Now"}
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
                 <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleViewResults(ballot)}
-                >
-                  View Results
-                </Button>
-                <Button 
-                  size="sm"
-                  disabled={hasVoted[ballot.id] || ballot.status !== 'Active'}
-                  onClick={() => {
-                    if (onViewBallot) {
-                      console.log("Navigating to ballot:", ballot.id);
-                      onViewBallot(ballot);
-                    }
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full h-8 gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30 shadow-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openInExplorer(getObjectUrl(ballot.id));
                   }}
                 >
-                  {hasVoted[ballot.id] ? "Voted" : "Vote Now"}
-                  <ChevronRight className="h-4 w-4 ml-1" />
+                  <ExternalLink size={14} />
+                  <span>View on Sui Scan</span>
                 </Button>
               </CardFooter>
             </Card>

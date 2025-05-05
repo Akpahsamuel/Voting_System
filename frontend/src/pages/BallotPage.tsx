@@ -3,7 +3,7 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../config/networkConfig";
 import { Badge } from "../components/ui/badge";
-import { FileText, LayoutDashboard, Settings, BarChart2, Users, Clock, AlertCircle } from "lucide-react";
+import { FileText, LayoutDashboard, Settings, BarChart2, Users, Clock } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { SuiObjectData, SuiClient } from "@mysten/sui/client";
 import BallotVoting from "../components/ballot/BallotVoting";
@@ -372,7 +372,13 @@ function parseBallot(data: SuiObjectData): Ballot | null {
     const id = data.objectId || "";
     const title = fields.title || "";
     const description = fields.description || "";
-    const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
+    
+    // Parse expiration timestamp - use directly without conversion
+    // The blockchain already provides it in milliseconds
+    const rawExpiration = fields.expiration || 0;
+    const expiration = Number(rawExpiration);
+    console.log('Raw ballot expiration from blockchain:', rawExpiration, 'Processed:', expiration);
+    
     const creator = fields.creator || "";
     const totalVotes = Number(fields.total_votes || 0);
     const isPrivate = Boolean(fields.is_private);

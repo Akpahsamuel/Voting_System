@@ -3,7 +3,7 @@ import { FC, useState, useEffect, useMemo } from "react";
 import { SuiObjectData } from "@mysten/sui/client";
 import { Proposal, VoteNft } from "../../types";
 import { getObjectUrl, openInExplorer } from "../../utils/explorerUtils";
-import { formatTimeRemaining } from "../../utils/formatUtils";
+import { formatTimeRemaining, formatDate } from "../../utils/formatUtils";
 import { 
   Card, 
   CardContent, 
@@ -12,14 +12,13 @@ import {
 } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Separator } from "../../components/ui/separator";
-import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
-import { ThumbsUp, ThumbsDown, ExternalLink, AlertTriangle, Clock } from "lucide-react";
+import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { ExternalLink, AlertTriangle, Clock } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Avatar, AvatarImage, AvatarFallback } from "../../components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
 import { VoteModal } from "./VoteModal";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import confetti from 'canvas-confetti';
 
 interface ProposalItemsProps {
@@ -52,10 +51,11 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
   // Handle countdown timer
   useEffect(() => {
     if (proposal?.expiration) {
+      console.log('Proposal expiration timestamp:', proposal.expiration, 'type:', typeof proposal.expiration);
       setTimeRemaining(formatTimeRemaining(proposal.expiration));
       const timer = setInterval(() => {
         setTimeRemaining(formatTimeRemaining(proposal.expiration));
-      }, 60000); // Update every minute
+      }, 1000); // Update every second for more accurate countdown
 
       return () => clearInterval(timer);
     }
@@ -279,7 +279,7 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-white/60">Created</span>
                     <span className="font-medium text-white">
-                      {new Date(proposal.expiration - 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                      {formatDate(proposal.expiration - 7 * 24 * 60 * 60 * 1000)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -309,7 +309,7 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-400" />
                   <span className="text-sm text-blue-300">
-                    {new Date(Number(proposal.expiration)).toLocaleString()}
+                    {formatDate(proposal.expiration, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <Button 
@@ -392,10 +392,4 @@ function formatStatus(status: string) {
   }
 }
 
-function formatUnixTime(timestampMs: number) {
-  return new Date(timestampMs).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
+// Function removed as it's no longer used
