@@ -18,6 +18,7 @@ import BallotPage from "./pages/BallotPage";
 import BallotsPage from "./pages/BallotsPage";
 import CreateBallotPage from "./pages/create-ballot";
 import ManageBallotPage from "./pages/ManageBallotPage";
+import BallotDetailPage from "./pages/ballot";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
   {
     path: "/ballots",
     element: <BallotPage />,  // This becomes the main ballot dashboard page
+  },
+  {
+    path: "/ballot/:ballotId", // Route for viewing and voting on individual ballots
+    element: <BallotDetailPage />,
   },
   {
     path: "/ballots/view/:ballotId",

@@ -21,17 +21,32 @@ import { useNetworkVariable } from "../config/networkConfig";
 import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 import { ConnectButton } from '@mysten/dapp-kit';
 
-// Define SuiID type
-type SuiID = string;
+// Define SuiID type for compatibility with what's used elsewhere
+type SuiID = { id: string };
+
+// Modify interface for Admin-specific proposal data
+interface AdminProposal {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  votedYesCount: number;
+  votedNoCount: number;
+  expiration: number;
+  creator: string;
+  voter_registry: string[];
+}
 
 export const AdminPage: FC = () => {
   const account = useCurrentAccount();
   const { hasAdminCap, adminCapId, isLoading: isLoadingAdminCap } = useAdminCap();
   const { hasSuperAdminCap, superAdminCapId, isLoading: isLoadingSuperAdminCap } = useSuperAdminCap();
-  const dashboardId = useNetworkVariable("dashboardId");
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [proposals, setProposals] = useState<AdminProposal[]>([]);
+  const [ballots, setBallots] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBallots, setIsLoadingBallots] = useState(true);
   const [systemHealth, setSystemHealth] = useState({
     status: "Operational",
     uptime: "99.98%",
@@ -95,21 +110,53 @@ export const AdminPage: FC = () => {
     return JSON.stringify(status);
   }
 
-  // Process proposal data when it changes
+  // Identify ballots among the objects fetched
   useEffect(() => {
     if (!proposalsData || !Array.isArray(proposalsData) || isPending) return;
+    
     try {
-      const parsedProposals = proposalsData
-        .map((item: SuiObjectResponse) => {
-          if (!item.data) return null;
-          const obj = item.data as SuiObjectData;
-          if (obj.content?.dataType !== "moveObject") return null;
-          const fields = obj.content.fields as any;
+      const parsedBallots: any[] = [];
+      const parsedProposals: AdminProposal[] = [];
+      
+      proposalsData.forEach((item: SuiObjectResponse) => {
+        if (!item.data) return;
+        const obj = item.data as SuiObjectData;
+        if (obj.content?.dataType !== "moveObject") return;
+        
+        const type = obj.content.type as string;
+        const isBallot = type && type.includes("::ballot::Ballot");
+        const isProposal = type && type.includes("::proposal::Proposal");
+        
+        const fields = obj.content.fields as any;
+        
+        // Process as ballot
+        if (isBallot) {
           // Defensive: expiration may be seconds or ms, normalize to ms
           let expiration = Number(fields.expiration);
           if (expiration < 1e12) expiration = expiration * 1000;
-          return {
-            id: obj.objectId as SuiID,
+          
+          parsedBallots.push({
+            id: obj.objectId,
+            title: fields.title || "Untitled Ballot",
+            description: fields.description || "",
+            candidates: Array.isArray(fields.candidates) 
+              ? fields.candidates 
+              : (fields.candidates?.vec || []),
+            totalVotes: Number(fields.total_votes || 0),
+            expiration,
+            status: getStatusVariant(fields.status),
+            creator: fields.creator || "Unknown",
+            isPrivate: Boolean(fields.is_private)
+          });
+        }
+        // Process as proposal
+        else if (isProposal) {
+          // Defensive: expiration may be seconds or ms, normalize to ms
+          let expiration = Number(fields.expiration);
+          if (expiration < 1e12) expiration = expiration * 1000;
+          
+          parsedProposals.push({
+            id: obj.objectId,
             title: fields.title || "Untitled",
             description: fields.description || "",
             votedYesCount: Number(fields.voted_yes_count) || 0,
@@ -118,49 +165,75 @@ export const AdminPage: FC = () => {
             status: getStatusVariant(fields.status),
             creator: fields.creator || "Unknown",
             voter_registry: fields.voter_registry || []
-          };
-        })
-        .filter(Boolean) as unknown as Proposal[];
-
-      // Perform analytics calculations based on real data
-      const now = Date.now();
-      const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-
-      const activeCount = parsedProposals.filter(p => p.status === "Active").length;
-      const delistedCount = parsedProposals.filter(p => p.status === "Delisted").length;
-      const totalVotes = parsedProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
-      const recentProposals = parsedProposals.filter(p => p.expiration > now && p.expiration - (7 * 24 * 60 * 60 * 1000) < now);
-      const recentVotesEstimate = Math.floor(totalVotes * 0.3);
-
-      setAnalyticsData({
-        totalProposals: parsedProposals.length,
-        activeProposals: activeCount,
-        delistedProposals: delistedCount,
-        totalVotes: totalVotes,
-        votesLastWeek: recentVotesEstimate,
-        votesWeeklyChange: 8.2, // Placeholder
-        proposalsLastWeek: recentProposals.length,
-        proposalsWeeklyChange: 12.5, // Placeholder
-        activeUsers: parsedProposals.reduce((set, p) => {
-          p.voter_registry.forEach((v: string) => set.add(v));
-          return set;
-        }, new Set<string>()).size,
-        activeUsersChange: -2.3 // Placeholder
+          });
+        }
       });
-
+      
+      // Update ballots and proposals state
+      setBallots(parsedBallots);
       setProposals(parsedProposals);
+      setIsLoadingBallots(false);
       setIsLoading(false);
+      
+      // Update analytics with both proposal and ballot data
+      updateAnalytics(parsedProposals, parsedBallots);
+      
     } catch (err) {
-      console.error("Failed to parse proposals:", err);
+      console.error("Failed to parse objects:", err);
       setProposals([]);
+      setBallots([]);
       setIsLoading(false);
+      setIsLoadingBallots(false);
     }
   }, [proposalsData, isPending]);
+  
+  // Function to update analytics with both proposal and ballot data
+  const updateAnalytics = (parsedProposals: AdminProposal[], parsedBallots: any[]) => {
+    const now = Date.now();
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+    const activeProposalCount = parsedProposals.filter(p => p.status === "Active").length;
+    const delistedProposalCount = parsedProposals.filter(p => p.status === "Delisted").length;
+    const totalProposalVotes = parsedProposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0);
+    const recentProposals = parsedProposals.filter(p => p.expiration > now && p.expiration - (7 * 24 * 60 * 60 * 1000) < now);
+    
+    // Calculate ballot statistics
+    const activeBallotCount = parsedBallots.filter(b => b.status === "Active").length;
+    const delistedBallotCount = parsedBallots.filter(b => b.status === "Delisted").length;
+    const totalBallotVotes = parsedBallots.reduce((sum, b) => sum + b.totalVotes, 0);
+    const recentBallots = parsedBallots.filter(b => b.expiration > now && b.expiration - (7 * 24 * 60 * 60 * 1000) < now);
+    
+    // Combined statistics
+    const totalVotes = totalProposalVotes + totalBallotVotes;
+    const recentVotesEstimate = Math.floor(totalVotes * 0.3);
+    const uniqueVoters = new Set<string>();
+    
+    // Add voters from proposals
+    parsedProposals.forEach(p => {
+      p.voter_registry.forEach((v: string) => uniqueVoters.add(v));
+    });
+    
+    // Estimate total unique voters
+    const estimatedUniqueVoters = uniqueVoters.size + Math.floor(totalBallotVotes * 0.7);
+
+    setAnalyticsData({
+      totalProposals: parsedProposals.length,
+      activeProposals: activeProposalCount,
+      delistedProposals: delistedProposalCount,
+      totalVotes: totalVotes,
+      votesLastWeek: recentVotesEstimate,
+      votesWeeklyChange: 8.2, // Placeholder
+      proposalsLastWeek: recentProposals.length + recentBallots.length,
+      proposalsWeeklyChange: 12.5, // Placeholder
+      activeUsers: estimatedUniqueVoters,
+      activeUsersChange: -2.3 // Placeholder
+    });
+  };
 
   // Utility functions
   const calculateVotePercentage = (isYes: boolean): number => {
-    const totalYesVotes = proposals.reduce((sum: number, p: Proposal) => sum + p.votedYesCount, 0);
-    const totalNoVotes = proposals.reduce((sum: number, p: Proposal) => sum + p.votedNoCount, 0);
+    const totalYesVotes = proposals.reduce((sum: number, p: AdminProposal) => sum + p.votedYesCount, 0);
+    const totalNoVotes = proposals.reduce((sum: number, p: AdminProposal) => sum + p.votedNoCount, 0);
     const total = totalYesVotes + totalNoVotes;
     
     if (total === 0) return 0;
@@ -661,13 +734,21 @@ export const AdminPage: FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <BallotManagement 
-                  ballots={[]} 
-                  isLoading={false} 
-                  adminCapId={adminCapId} 
-                  superAdminCapId={superAdminCapId}
-                  hasSuperAdminCap={hasSuperAdminCap}
-                />
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ballot Management</CardTitle>
+                    <CardDescription>Manage your ballots, add candidates, and view status</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <BallotManagement 
+                      ballots={ballots} 
+                      isLoading={isLoadingBallots} 
+                      adminCapId={adminCapId as string | undefined} 
+                      superAdminCapId={superAdminCapId as string | undefined}
+                      hasSuperAdminCap={hasSuperAdminCap}
+                    />
+                  </CardContent>
+                </Card>
               </motion.div>
             )}
             
@@ -678,16 +759,19 @@ export const AdminPage: FC = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <CreateBallot
-                  adminCapId={adminCapId} 
-                  superAdminCapId={superAdminCapId}
-                  hasSuperAdminCap={hasSuperAdminCap}
-                  onBallotCreated={(ballotId) => {
-                    console.log("Ballot created with ID:", ballotId);
-                    // Optionally switch to ballot management tab after creation
-                    setActiveTab("ballot_management");
-                  }}
-                />
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Create New Ballot</CardTitle>
+                    <CardDescription>Create a new ballot for voting</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CreateBallot
+                      adminCapId={adminCapId as string | undefined} 
+                      superAdminCapId={superAdminCapId as string | undefined}
+                      hasSuperAdminCap={hasSuperAdminCap}
+                    />
+                  </CardContent>
+                </Card>
               </motion.div>
             )}
             

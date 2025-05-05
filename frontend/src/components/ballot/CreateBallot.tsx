@@ -91,9 +91,17 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotC
           tx.object(capId!),
           tx.pure.string(values.title),
           tx.pure.string(values.description),
-          tx.pure.u64(Math.floor(values.expiration.getTime() / 1000)), // Convert to Unix timestamp
+          tx.pure.u64(values.expiration.getTime()), // Use milliseconds timestamp like proposals do
           tx.pure.bool(isPrivate),
         ],
+      });
+      
+      // Log important details for debugging
+      console.log("Creating ballot with expiration:", {
+        expirationDate: values.expiration.toString(),
+        expirationMs: values.expiration.getTime(),
+        currentTimeMs: Date.now(),
+        timeUntilExpiration: values.expiration.getTime() - Date.now(),
       });
       
       // Register ballot with dashboard in the same transaction

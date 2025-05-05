@@ -139,7 +139,7 @@ export default function BallotList({ suiClient }: BallotListProps) {
               id: response.data.objectId,
               title: fields.title || "Untitled Ballot",
               description: fields.description || "No description",
-              expiration: Number(fields.expiration || 0),
+              expiration: expiration,
               isPrivate: Boolean(fields.is_private),
               candidateCount: candidates.length,
               totalVotes: Number(fields.total_votes || 0),
@@ -166,18 +166,18 @@ export default function BallotList({ suiClient }: BallotListProps) {
   };
 
   const formatTimeLeft = (expirationTimestamp: number) => {
-    const now = Math.floor(Date.now() / 1000);
+    const now = Date.now();
     const diff = expirationTimestamp - now;
     
     if (diff <= 0) return "Expired";
     
-    const days = Math.floor(diff / (60 * 60 * 24));
-    const hours = Math.floor((diff % (60 * 60 * 24)) / (60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     
     if (days > 0) {
       return `${days}d ${hours}h left`;
     } else {
-      const minutes = Math.floor((diff % (60 * 60)) / 60);
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       return `${hours}h ${minutes}m left`;
     }
   };

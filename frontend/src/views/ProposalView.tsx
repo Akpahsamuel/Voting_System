@@ -5,7 +5,7 @@ import { ProposalItem } from "../components/proposal/ProposalItem";
 import { useVoteNfts } from "../hooks/useVoteNfts";
 import { VoteNft } from "../types";
 import UserStatistics from "../components/user/UserStatistics";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
@@ -13,6 +13,8 @@ const ProposalView = () => {
   const dashboardId = useNetworkVariable("dashboardId" as any);
   const { data: voteNftsRes, refetch: refetchNfts} = useVoteNfts();
   const [showStats, setShowStats] = useState(true);
+  const [filteredProposalIds, setFilteredProposalIds] = useState<string[]>([]);
+  const [isFiltering, setIsFiltering] = useState(true);
 
   const { data: dataResponse, isPending, error} = useSuiClientQuery(
     "getObject", {
@@ -23,12 +25,64 @@ const ProposalView = () => {
     }
   );
 
-  if (isPending) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern pt-24">Loading...</div>;
+  // Filter out ballot objects from proposal IDs
+  useEffect(() => {
+    if (dataResponse?.data) {
+      const proposalIds = getDashboardFields(dataResponse.data)?.proposals_ids || [];
+      if (proposalIds.length > 0) {
+        setIsFiltering(true);
+        
+        // Check each ID to see if it's a proposal or ballot
+        const checkObjects = async () => {
+          const validProposalIds: string[] = [];
+          
+          // Use Promise.all to check all objects in parallel
+          await Promise.all(proposalIds.map(async (id) => {
+            try {
+              const response = await fetch(`https://fullnode.devnet.sui.io/`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: 1,
+                  method: 'sui_getObject',
+                  params: [id, { showContent: true }]
+                })
+              });
+              
+              const data = await response.json();
+              if (data?.result?.data?.content?.type) {
+                const type = data.result.data.content.type;
+                // Only include actual proposals, not ballots
+                if (type.includes('::proposal::Proposal')) {
+                  validProposalIds.push(id);
+                }
+              }
+            } catch (err) {
+              console.error("Error checking object type:", err);
+            }
+          }));
+          
+          setFilteredProposalIds(validProposalIds);
+          setIsFiltering(false);
+        };
+        
+        checkObjects();
+      } else {
+        setFilteredProposalIds([]);
+        setIsFiltering(false);
+      }
+    }
+  }, [dataResponse?.data]);
+
+  if (isPending || isFiltering) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern pt-24">Loading...</div>;
   if (error) return <div className="text-red-500 min-h-screen bg-black bg-grid-pattern pt-24">Error: {error.message}</div>;
   if (!dataResponse.data) return <div className="text-center text-red-500 min-h-screen bg-black bg-grid-pattern pt-24">Not Found...</div>;
 
   const voteNfts = extractVoteNfts(voteNftsRes);
-  const proposalIds = getDashboardFields(dataResponse.data)?.proposals_ids || [];
+  const proposalIds = filteredProposalIds;
 
   return (
     <div className="min-h-screen bg-black bg-grid-pattern text-white">

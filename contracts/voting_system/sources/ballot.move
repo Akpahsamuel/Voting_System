@@ -513,7 +513,7 @@ module voting_system::ballot {
         description.append(ballot_address);
 
         // Use a generic voting image for now
-        let url = new_unsafe_from_bytes(b"https://lionprado.sirv.com/ballot_vote_nft.png");
+        let url = new_unsafe_from_bytes(b"https://lionprado.sirv.com/vote_yes_nft.png");
 
         let proof = BallotVoteProof {
             id: object::new(ctx),

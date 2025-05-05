@@ -358,13 +358,27 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
 
 function parseProposal(data: SuiObjectData): Proposal | null {
   if (data.content?.dataType !== "moveObject") return null;
+  
+  // Check if this is actually a proposal, not a ballot
+  const type = data.content.type as string;
+  const isProposal = type && type.includes("::proposal::Proposal");
+  const isBallot = type && type.includes("::ballot::Ballot");
+  
+  if (isBallot) {
+    console.log("Skipping ballot in proposal view:", data.objectId);
+    return null;
+  }
+  
+  if (!isProposal) {
+    console.log("Unknown object type in proposal view:", type);
+  }
 
   const { voted_yes_count, voted_no_count, ...rest } = data.content.fields as any;
 
   return {
     ...rest,
-    votedYesCount: Number(voted_yes_count),
-    votedNoCount: Number(voted_no_count)
+    votedYesCount: Number(voted_yes_count || 0),
+    votedNoCount: Number(voted_no_count || 0)
   };
 }
 

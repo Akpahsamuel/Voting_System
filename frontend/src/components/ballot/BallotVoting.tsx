@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
+import { Ballot } from "../../pages/BallotPage";
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -85,10 +86,10 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
 
   const getChartData = (ballot: Ballot) => {
     return {
-      labels: ballot.candidates.map(c => c.name),
+      labels: ballot.candidates.map((c) => c.name),
       datasets: [
         {
-          data: ballot.candidates.map(c => c.votes),
+          data: ballot.candidates.map((c) => c.votes),
           backgroundColor: [
             'rgba(54, 162, 235, 0.6)',
             'rgba(255, 99, 132, 0.6)',
@@ -249,7 +250,12 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                 <Button 
                   size="sm"
                   disabled={hasVoted[ballot.id] || ballot.status !== 'Active'}
-                  onClick={() => onViewBallot && onViewBallot(ballot)}
+                  onClick={() => {
+                    if (onViewBallot) {
+                      console.log("Navigating to ballot:", ballot.id);
+                      onViewBallot(ballot);
+                    }
+                  }}
                 >
                   {hasVoted[ballot.id] ? "Voted" : "Vote Now"}
                   <ChevronRight className="h-4 w-4 ml-1" />

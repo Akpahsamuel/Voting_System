@@ -63,7 +63,7 @@ export default function ManageBallotPage() {
             id: ballotId,
             title: "Community Treasury Allocation",
             description: "Vote on how to allocate the community treasury funds for Q2 2025",
-            expiration: Math.floor(Date.now() / 1000) + 86400 * 3, // 3 days from now
+            expiration: Math.floor(Date.now()) + 86400 * 3 * 1000, // 3 days from now
             isPrivate: false,
             candidates: [
               {
@@ -221,7 +221,7 @@ export default function ManageBallotPage() {
                 <div className="flex items-center">
                   <Clock className="w-4 h-4 mr-1" />
                   <span>
-                    Expires on {new Date(ballot.expiration * 1000).toLocaleDateString()} at {new Date(ballot.expiration * 1000).toLocaleTimeString()}
+                    Expires on {new Date(ballot.expiration).toLocaleDateString()} at {new Date(ballot.expiration).toLocaleTimeString()}
                   </span>
                 </div>
                 <div>

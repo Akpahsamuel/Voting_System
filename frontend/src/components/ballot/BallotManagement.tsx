@@ -241,7 +241,7 @@ const BallotManagement = ({
               id: response.data.objectId,
               title: fields.title || "Untitled Ballot",
               description: fields.description || "No description",
-              expiration: Number(fields.expiration || 0),
+              expiration: expiration,
               isPrivate: Boolean(fields.is_private),
               candidates,
               totalVotes: Number(fields.total_votes || 0),
@@ -293,7 +293,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::remove_candidate_super`,
           arguments: [
-            tx.pure.id(selectedBallot.id),
+            tx.object(selectedBallot.id),
             tx.object(superAdminCapId),
             tx.pure.u64(selectedCandidate.id),
           ],
@@ -302,7 +302,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::remove_candidate`,
           arguments: [
-            tx.pure.id(selectedBallot.id),
+            tx.object(selectedBallot.id),
             tx.object(adminCapId),
             tx.pure.u64(selectedCandidate.id),
           ],
@@ -364,7 +364,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::set_ballot_delisted_status_super`,
           arguments: [
-            tx.pure.id(selectedBallot.id),
+            tx.object(selectedBallot.id),
             tx.object(superAdminCapId),
           ],
         });
@@ -372,7 +372,7 @@ const BallotManagement = ({
         tx.moveCall({
           target: `${packageId}::ballot::set_ballot_delisted_status`,
           arguments: [
-            tx.pure.id(selectedBallot.id),
+            tx.object(selectedBallot.id),
             tx.object(adminCapId),
           ],
         });
@@ -435,7 +435,7 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_with_image_super`,
             arguments: [
-              tx.pure.id(selectedBallot.id),
+              tx.object(selectedBallot.id),
               tx.object(superAdminCapId),
               tx.pure.string(newCandidateName),
               tx.pure.string(newCandidateDescription),
@@ -446,7 +446,7 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_with_image`,
             arguments: [
-              tx.pure.id(selectedBallot.id),
+              tx.object(selectedBallot.id),
               tx.object(adminCapId),
               tx.pure.string(newCandidateName),
               tx.pure.string(newCandidateDescription),
@@ -460,7 +460,7 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate_super`,
             arguments: [
-              tx.pure.id(selectedBallot.id),
+              tx.object(selectedBallot.id),
               tx.object(superAdminCapId),
               tx.pure.string(newCandidateName),
               tx.pure.string(newCandidateDescription),
@@ -470,7 +470,7 @@ const BallotManagement = ({
           tx.moveCall({
             target: `${packageId}::ballot::add_candidate`,
             arguments: [
-              tx.pure.id(selectedBallot.id),
+              tx.object(selectedBallot.id),
               tx.object(adminCapId),
               tx.pure.string(newCandidateName),
               tx.pure.string(newCandidateDescription),

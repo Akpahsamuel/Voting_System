@@ -7,15 +7,12 @@ import { FileText, LayoutDashboard, Settings, BarChart2, Users, Clock, AlertCirc
 import Navbar from "../components/Navbar";
 import { SuiObjectData, SuiClient } from "@mysten/sui/client";
 import BallotVoting from "../components/ballot/BallotVoting";
-import BallotManagement from "../components/ballot/BallotManagement";
-import CreateBallot from "../components/ballot/CreateBallot";
 import VoterRegistry from "../components/admin/VoterRegistry";
-import { useAdminCap } from "../hooks/useAdminCap";
-import { useSuperAdminCap } from "../hooks/useSuperAdminCap";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { useNavigate } from "react-router-dom";
 
-// Define Ballot type
+// Define Candidate type
 export interface Candidate {
   id: number;
   name: string;
@@ -24,6 +21,7 @@ export interface Candidate {
   imageUrl?: string;
 }
 
+// Define Ballot type
 export interface Ballot {
   id: string;
   title: string;
@@ -38,12 +36,11 @@ export interface Ballot {
 
 export const BallotPage: FC = () => {
   const account = useCurrentAccount();
-  const { hasAdminCap, adminCapId } = useAdminCap();
-  const { hasSuperAdminCap, superAdminCapId } = useSuperAdminCap();
   const dashboardId = useNetworkVariable("dashboardId" as any);
   const [activeTab, setActiveTab] = useState("voting");
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Analytics data state
   const [analyticsData, setAnalyticsData] = useState({
@@ -107,6 +104,15 @@ export const BallotPage: FC = () => {
             });
 
             if (response.data && response.data.content?.dataType === "moveObject") {
+              // Check if this is actually a ballot, not a proposal
+              const type = response.data.content.type as string;
+              const isBallot = type && type.includes("::ballot::Ballot");
+              
+              if (!isBallot) {
+                console.log("Skipping non-ballot object in ballot view:", id);
+                continue;
+              }
+              
               const ballot = parseBallot(response.data);
               if (ballot) {
                 fetchedBallots.push(ballot);
@@ -126,13 +132,17 @@ export const BallotPage: FC = () => {
 
         setBallots(fetchedBallots);
         
-        // Update analytics
+        // Update analytics with new values directly instead of referencing previous state
         setAnalyticsData({
-          ...analyticsData,
           totalBallots: fetchedBallots.length,
           activeBallots: activeBallotCount,
           delistedBallots: delistedBallotCount,
-          totalVotes: totalVotes
+          totalVotes: totalVotes,
+          votesLastWeek: 0,
+          votesWeeklyChange: 5.7,
+          ballotsLastWeek: 0,
+          ballotsWeeklyChange: 10.2,
+          activeVoters: 156,
         });
       } catch (error) {
         console.error("Error fetching ballots:", error);
@@ -144,7 +154,13 @@ export const BallotPage: FC = () => {
     if (account && ballotIds.length > 0) {
       fetchBallots();
     }
-  }, [account, ballotIds, analyticsData]);
+  }, [account, ballotIds]); // Remove analyticsData from dependencies
+
+  // Handler to navigate to individual ballot page
+  const handleViewBallot = (ballot: Ballot) => {
+    console.log("Navigating to ballot:", ballot.id);
+    navigate(`/ballot/${ballot.id}`);
+  };
 
   if (!account) {
     return (
@@ -171,38 +187,16 @@ export const BallotPage: FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold">Ballot System</h1>
-            <p className="text-muted-foreground">Create and manage ballots, vote on candidates</p>
-          </div>
-          <div className="flex items-center space-x-2 mt-4 md:mt-0">
-            {(hasAdminCap || hasSuperAdminCap) && (
-              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 px-3 py-1">
-                {hasSuperAdminCap ? "Super Admin" : "Admin"}
-              </Badge>
-            )}
-            {/* ConnectButton is already in the Navbar */}
+            <p className="text-muted-foreground">View and vote on ballots</p>
           </div>
         </div>
 
       <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 md:grid-cols-5 mb-8">
+        <TabsList className="grid grid-cols-3 mb-8">
           <TabsTrigger value="voting" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden md:inline">Voting</span>
           </TabsTrigger>
-          
-          {(hasAdminCap || hasSuperAdminCap) && (
-            <>
-              <TabsTrigger value="create" className="flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                <span className="hidden md:inline">Create Ballot</span>
-              </TabsTrigger>
-              
-              <TabsTrigger value="manage" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                <span className="hidden md:inline">Manage Ballots</span>
-              </TabsTrigger>
-            </>
-          )}
           
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart2 className="h-4 w-4" />
@@ -216,24 +210,13 @@ export const BallotPage: FC = () => {
         </TabsList>
 
         <TabsContent value="voting" className="p-0">
-          <BallotVoting ballots={ballots} isLoading={isLoading} />
-        </TabsContent>
-        <TabsContent value="manage" className="p-0">
-          <BallotManagement 
+          <BallotVoting 
             ballots={ballots} 
             isLoading={isLoading} 
-            adminCapId={adminCapId} 
-            superAdminCapId={superAdminCapId} 
-            hasSuperAdminCap={hasSuperAdminCap}
+            onViewBallot={handleViewBallot} 
           />
         </TabsContent>
-        <TabsContent value="create" className="p-0">
-          <CreateBallot 
-            adminCapId={adminCapId} 
-            superAdminCapId={superAdminCapId} 
-            hasSuperAdminCap={hasSuperAdminCap} 
-          />
-        </TabsContent>
+
         <TabsContent value="analytics" className="p-0">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
             <Card>
@@ -353,11 +336,11 @@ function getDashboardFields(data: SuiObjectData) {
       proposals_ids = fields.proposals_ids.vec || [];
     }
     
-    console.log("Parsed ballot IDs from dashboard:", proposals_ids);
+    console.log("Parsed registered object IDs from dashboard:", proposals_ids);
     
     return {
       id: fields.id,
-      proposals_ids: proposals_ids
+      proposals_ids: proposals_ids  // This field contains both proposals and ballots
     };
   } catch (error) {
     console.error("Error parsing dashboard fields:", error);
@@ -374,7 +357,17 @@ function parseBallot(data: SuiObjectData): Ballot | null {
     }
 
     const fields = data.content.fields as any;
-    console.log("Parsing ballot object:", data.objectId, fields);
+    const type = data.content.type as string;
+    console.log("Parsing object:", data.objectId, "with type:", type);
+    
+    // Check if this is actually a ballot
+    const isBallot = type && type.includes("::ballot::Ballot");
+    const isProposal = type && type.includes("::proposal::Proposal");
+    
+    if (!isBallot && !isProposal) {
+      console.warn("Object is neither a ballot nor a proposal:", type);
+      return null;
+    }
     
     const id = data.objectId || "";
     const title = fields.title || "";
@@ -405,7 +398,7 @@ function parseBallot(data: SuiObjectData): Ballot | null {
       }
     }
     
-    console.log("Parsing candidates data:", candidatesData);
+    console.log(`Parsing ${isBallot ? 'ballot' : 'proposal'} candidates:`, candidatesData);
     
     const candidates: Candidate[] = [];
     
@@ -447,10 +440,10 @@ function parseBallot(data: SuiObjectData): Ballot | null {
       isPrivate
     };
 
-    console.log("Successfully parsed ballot:", ballot.title, "with", candidates.length, "candidates");
+    console.log(`Successfully parsed ${isBallot ? 'ballot' : 'proposal'}: ${title} with ${candidates.length} candidates`);
     return ballot;
   } catch (error) {
-    console.error("Error parsing ballot:", error, data);
+    console.error("Error parsing object:", error, data);
     return null;
   }
 }

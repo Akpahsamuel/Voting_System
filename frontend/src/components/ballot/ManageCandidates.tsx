@@ -83,7 +83,7 @@ const ManageCandidates = ({
             tx.moveCall({
               target: `${packageId}::ballot::add_candidate_with_image_super`,
               arguments: [
-                tx.pure.id(ballotId),
+                tx.object(ballotId),
                 tx.object(superAdminCapId),
                 tx.pure.string(candidate.name),
                 tx.pure.string(candidate.description),
@@ -94,7 +94,7 @@ const ManageCandidates = ({
             tx.moveCall({
               target: `${packageId}::ballot::add_candidate_with_image`,
               arguments: [
-                tx.pure.id(ballotId),
+                tx.object(ballotId),
                 tx.object(adminCapId),
                 tx.pure.string(candidate.name),
                 tx.pure.string(candidate.description),
@@ -108,7 +108,7 @@ const ManageCandidates = ({
             tx.moveCall({
               target: `${packageId}::ballot::add_candidate_super`,
               arguments: [
-                tx.pure.id(ballotId),
+                tx.object(ballotId),
                 tx.object(superAdminCapId),
                 tx.pure.string(candidate.name),
                 tx.pure.string(candidate.description),
@@ -118,7 +118,7 @@ const ManageCandidates = ({
             tx.moveCall({
               target: `${packageId}::ballot::add_candidate`,
               arguments: [
-                tx.pure.id(ballotId),
+                tx.object(ballotId),
                 tx.object(adminCapId),
                 tx.pure.string(candidate.name),
                 tx.pure.string(candidate.description),
