@@ -19,7 +19,7 @@ import {
   X,
   RefreshCw
 } from "lucide-react";
-import { formatDate } from "../../utils/formatUtils";
+import { formatDate, normalizeTimestamp } from "../../utils/formatUtils";
 
 // Import shadcn components
 import { Button } from "../ui/button";
@@ -111,8 +111,8 @@ const BallotManagement = ({
   const [newCandidateImageUrl, setNewCandidateImageUrl] = useState("");
   const [showAddCandidateDialog, setShowAddCandidateDialog] = useState(false);
 
-  const packageId = useNetworkVariable("packageId");
-  const dashboardId = useNetworkVariable("dashboardId");
+  const packageId = useNetworkVariable("packageId" as any);
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const suiClient = useSuiClient();
 
@@ -139,7 +139,7 @@ const BallotManagement = ({
       
       // Get dashboard object to fetch ballot IDs
       const dashboardResponse = await suiClient.getObject({
-        id: dashboardId,
+        id: dashboardId as string,
         options: {
           showContent: true
         }
@@ -231,13 +231,17 @@ const BallotManagement = ({
               });
             }
             
+            // Parse expiration timestamp
+            const expiration = Number(fields.expiration || 0);
+            const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+            console.log("BallotManagement - Expiration from blockchain (normalized):", normalizedExpiration);
+            
             // Determine ballot status
             let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
-            const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
             
             if (fields.status?.fields?.name === "Delisted") {
               status = 'Delisted';
-            } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+            } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
               status = 'Expired';
             }
             
@@ -246,7 +250,7 @@ const BallotManagement = ({
               id: response.data.objectId,
               title: fields.title || "Untitled Ballot",
               description: fields.description || "No description",
-              expiration: expiration,
+              expiration: normalizedExpiration,
               isPrivate: Boolean(fields.is_private),
               candidates,
               totalVotes: Number(fields.total_votes || 0),

@@ -20,6 +20,7 @@ import { Badge } from '../components/ui/badge';
 import { useNetworkVariable } from "../config/networkConfig";
 import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 import { ConnectButton } from '@mysten/dapp-kit';
+import { normalizeTimestamp, formatRelativeTime, formatTimeLeft } from "../utils/formatUtils";
 
 // Define SuiID type for compatibility with what's used elsewhere
 type SuiID = { id: string };
@@ -131,9 +132,10 @@ export const AdminPage: FC = () => {
         
         // Process as ballot
         if (isBallot) {
-          // Defensive: expiration may be seconds or ms, normalize to ms
-          let expiration = Number(fields.expiration);
-          if (expiration < 1e12) expiration = expiration * 1000;
+          // Parse expiration timestamp
+          const expiration = Number(fields.expiration);
+          const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+          console.log("AdminPage - Ballot expiration (normalized):", normalizedExpiration);
           
           parsedBallots.push({
             id: obj.objectId,
@@ -143,7 +145,7 @@ export const AdminPage: FC = () => {
               ? fields.candidates 
               : (fields.candidates?.vec || []),
             totalVotes: Number(fields.total_votes || 0),
-            expiration,
+            expiration: normalizedExpiration,
             status: getStatusVariant(fields.status),
             creator: fields.creator || "Unknown",
             isPrivate: Boolean(fields.is_private)
@@ -151,9 +153,10 @@ export const AdminPage: FC = () => {
         }
         // Process as proposal
         else if (isProposal) {
-          // Defensive: expiration may be seconds or ms, normalize to ms
-          let expiration = Number(fields.expiration);
-          if (expiration < 1e12) expiration = expiration * 1000;
+          // Parse expiration timestamp
+          const expiration = Number(fields.expiration);
+          const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+          console.log("AdminPage - Proposal expiration (normalized):", normalizedExpiration);
           
           parsedProposals.push({
             id: obj.objectId,
@@ -161,7 +164,7 @@ export const AdminPage: FC = () => {
             description: fields.description || "",
             votedYesCount: Number(fields.voted_yes_count) || 0,
             votedNoCount: Number(fields.voted_no_count) || 0,
-            expiration,
+            expiration: normalizedExpiration,
             status: getStatusVariant(fields.status),
             creator: fields.creator || "Unknown",
             voter_registry: fields.voter_registry || []
@@ -241,25 +244,16 @@ export const AdminPage: FC = () => {
   };
 
   const isExpired = (unixTimeMs: number): boolean => {
-    return new Date(unixTimeMs) < new Date();
+    const normalizedTime = normalizeTimestamp(unixTimeMs);
+    if (normalizedTime === null) {
+      console.error('Invalid timestamp in isExpired:', unixTimeMs);
+      return false; // Safer to assume not expired when unknown
+    }
+    return normalizedTime < Date.now();
   };
 
   const formatTimeRemaining = (timestampMs: number): string => {
-    const now = new Date();
-    const expirationDate = new Date(timestampMs);
-    
-    if (expirationDate < now) return "Expired";
-    
-    const diffMs = expirationDate.getTime() - now.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (diffDays > 0) {
-      return `${diffDays}d ${diffHours}h left`;
-    } else {
-      const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      return `${diffHours}h ${diffMinutes}m left`;
-    }
+    return formatTimeLeft(timestampMs);
   };
 
   // Check if wallet is connected

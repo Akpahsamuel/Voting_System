@@ -3,7 +3,7 @@ import { FC, useState, useEffect, useMemo } from "react";
 import { SuiObjectData } from "@mysten/sui/client";
 import { Proposal, VoteNft } from "../../types";
 import { getObjectUrl, openInExplorer } from "../../utils/explorerUtils";
-import { formatTimeRemaining, formatDate } from "../../utils/formatUtils";
+import { formatDate, normalizeTimestamp, formatTimeLeft } from "../../utils/formatUtils";
 import { 
   Card, 
   CardContent, 
@@ -13,7 +13,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
-import { ExternalLink, AlertTriangle, Clock } from "lucide-react";
+import { ExternalLink, AlertTriangle, Clock, CalendarIcon } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Avatar, AvatarImage, AvatarFallback } from "../../components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip";
@@ -51,13 +51,51 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
   // Handle countdown timer
   useEffect(() => {
     if (proposal?.expiration) {
-      console.log('Proposal expiration timestamp:', proposal.expiration, 'type:', typeof proposal.expiration);
-      setTimeRemaining(formatTimeRemaining(proposal.expiration));
-      const timer = setInterval(() => {
-        setTimeRemaining(formatTimeRemaining(proposal.expiration));
-      }, 1000); // Update every second for more accurate countdown
-
-      return () => clearInterval(timer);
+      console.log('Processing expiration:', proposal.expiration);
+      try {
+        // Try to normalize the timestamp
+        const normalizedExpiration = normalizeTimestamp(proposal.expiration);
+        console.log('Normalized expiration:', normalizedExpiration);
+        
+        // If normalization fails, try direct calculation
+        if (normalizedExpiration === null) {
+          console.warn('Using direct date calculation for timestamp:', proposal.expiration);
+          
+          // Try to create a date object directly
+          const expirationDate = new Date(proposal.expiration);
+          console.log('Direct date calculation result:', expirationDate);
+          
+          if (!isNaN(expirationDate.getTime())) {
+            // If date is valid, set initial time remaining
+            setTimeRemaining(formatTimeLeft(expirationDate.getTime()));
+            
+            // Update the countdown every second
+            const timer = setInterval(() => {
+              setTimeRemaining(formatTimeLeft(expirationDate.getTime()));
+            }, 1000);
+            
+            return () => clearInterval(timer);
+          } else {
+            console.error('Failed to create valid date from timestamp:', proposal.expiration);
+            setTimeRemaining('Deadline unavailable');
+          }
+        } else {
+          console.log('Using normalized expiration:', normalizedExpiration);
+          
+          // Set initial time remaining with normalized timestamp
+          setTimeRemaining(formatTimeLeft(normalizedExpiration));
+          
+          // Update the countdown every second
+          const timer = setInterval(() => {
+            setTimeRemaining(formatTimeLeft(normalizedExpiration));
+          }, 1000);
+          
+          return () => clearInterval(timer);
+        }
+      } catch (error) {
+        console.error('Error in timestamp processing:', error);
+        setTimeRemaining('Deadline unavailable');
+      }
     }
   }, [proposal?.expiration]);
 
@@ -202,7 +240,13 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 <div className="flex items-center gap-2">
                   <Badge 
                     variant="outline" 
-                    className={`${isDelisted ? 'bg-white/10 text-white/70' : 'bg-blue-900/30 text-blue-300'} border-white/20`}
+                    className={`${
+                      isDelisted 
+                        ? 'bg-white/10 text-white/70' 
+                        : timeRemaining === 'Check deadline' || timeRemaining === 'Deadline unavailable'
+                          ? 'bg-amber-900/30 text-amber-300'
+                          : 'bg-blue-900/30 text-blue-300'
+                    } border-white/20`}
                   >
                     {timeRemaining}
                   </Badge>
@@ -278,9 +322,18 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-white/60">Created</span>
-                    <span className="font-medium text-white">
-                      {formatDate(proposal.expiration - 7 * 24 * 60 * 60 * 1000)}
-                    </span>
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <CalendarIcon className="mr-1 h-3 w-3" />
+                      {(() => {
+                        // Show today's date properly formatted
+                        const today = new Date();
+                        return today.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        });
+                      })()}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-white/60">Status</span>
@@ -308,8 +361,32 @@ export const ProposalItem: FC<ProposalItemsProps> = ({ id, voteNft, onVoteTxSucc
                 </Badge>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-400" />
-                  <span className="text-sm text-blue-300">
-                    {formatDate(proposal.expiration, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  <span className="text-xs text-muted-foreground">
+                    {(() => {
+                      if (!proposal.expiration) {
+                        return "No expiration date set";
+                      }
+                      
+                      try {
+                        const formattedDate = formatDate(proposal.expiration, { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        });
+                        
+                        if (formattedDate === 'Date unavailable') {
+                          console.warn('Could not format expiration date:', proposal.expiration);
+                          return "Invalid expiration date";
+                        }
+                        
+                        return formattedDate;
+                      } catch (error) {
+                        console.error('Error formatting expiration date:', error);
+                        return "Invalid expiration date";
+                      }
+                    })()}
                   </span>
                 </div>
                 <Button 
@@ -373,12 +450,13 @@ function parseProposal(data: SuiObjectData): Proposal | null {
     console.log("Unknown object type in proposal view:", type);
   }
 
-  const { voted_yes_count, voted_no_count, ...rest } = data.content.fields as any;
+  const { voted_yes_count, voted_no_count, expiration, ...rest } = data.content.fields as any;
 
   return {
     ...rest,
     votedYesCount: Number(voted_yes_count || 0),
-    votedNoCount: Number(voted_no_count || 0)
+    votedNoCount: Number(voted_no_count || 0),
+    expiration: expiration !== undefined ? Number(expiration) : undefined,
   };
 }
 
@@ -389,6 +467,73 @@ function formatStatus(status: string) {
     case "Rejected": return "Rejected";
     case "Delisted": return "Delisted";
     default: return status;
+  }
+}
+
+function debugTimestampConversion(timestamp: number) {
+  console.group('Debug Timestamp Conversion');
+  console.log('Original timestamp:', timestamp);
+  
+  try {
+    // Test different normalization approaches
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    console.log('Normalized timestamp:', normalizedTimestamp);
+    
+    // Convert to Date objects - with safe error handling
+    try {
+      const originalDate = new Date(timestamp);
+      if (!isNaN(originalDate.getTime())) {
+        console.log('As Date (original):', originalDate.toLocaleString());
+        // Only call toISOString if we're sure the date is valid
+        console.log('ISO string (original):', originalDate.toISOString());
+      } else {
+        console.log('As Date (original): Invalid date');
+      }
+    } catch (error) {
+      console.error('Error converting original timestamp to Date:', error);
+    }
+    
+    if (normalizedTimestamp) {
+      try {
+        const normalizedDate = new Date(normalizedTimestamp);
+        if (!isNaN(normalizedDate.getTime())) {
+          console.log('As Date (normalized):', normalizedDate.toLocaleString());
+          // Only call toISOString if we're sure the date is valid
+          console.log('ISO string (normalized):', normalizedDate.toISOString());
+        } else {
+          console.log('As Date (normalized): Invalid date');
+        }
+      } catch (error) {
+        console.error('Error converting normalized timestamp to Date:', error);
+      }
+    }
+    
+    // Test formatters - these already have error handling
+    console.log('formatDate result:', formatDate(timestamp));
+    console.log('formatTimeLeft result:', formatTimeLeft(timestamp));
+    
+    // Try fallback for invalid timestamps
+    if (!normalizedTimestamp) {
+      // Try multiplying by 1000 if it's likely in seconds
+      try {
+        const fallbackTimestamp = timestamp * 1000;
+        console.log('Fallback timestamp (original × 1000):', fallbackTimestamp);
+        
+        const fallbackDate = new Date(fallbackTimestamp);
+        if (!isNaN(fallbackDate.getTime())) {
+          console.log('Fallback as Date:', fallbackDate.toLocaleString());
+          console.log('Fallback ISO string:', fallbackDate.toISOString());
+        } else {
+          console.log('Fallback as Date: Invalid date');
+        }
+      } catch (error) {
+        console.error('Error with fallback timestamp conversion:', error);
+      }
+    }
+  } catch (error) {
+    console.error('Unhandled error in debugTimestampConversion:', error);
+  } finally {
+    console.groupEnd();
   }
 }
 

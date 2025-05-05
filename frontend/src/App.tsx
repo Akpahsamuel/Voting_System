@@ -6,6 +6,8 @@ import {
   RouterProvider, 
   createBrowserRouter
 } from "react-router-dom";
+import { useEffect } from "react";
+import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ProposalView from "./views/ProposalView";
@@ -21,6 +23,24 @@ import ManageBallotPage from "./pages/ManageBallotPage";
 import BallotDetailPage from "./pages/ballot";
 
 const queryClient = new QueryClient();
+
+// This component resets transaction state after completion
+const TransactionStateResetter = ({ children }: { children: React.ReactNode }) => {
+  const { isSuccess, isError, reset } = useSignAndExecuteTransaction();
+  
+  useEffect(() => {
+    if (isSuccess || isError) {
+      // Add a delay before resetting the transaction state
+      const timeoutId = setTimeout(() => {
+        reset();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isSuccess, isError, reset]);
+  
+  return <>{children}</>;
+};
 
 const router = createBrowserRouter([
   {
@@ -89,9 +109,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <RouterProvider router={router} />
-        <Toaster />
-        <Sonner />
+        <TransactionStateResetter>
+          <RouterProvider router={router} />
+          <Toaster />
+          <Sonner />
+        </TransactionStateResetter>
       </TooltipProvider>
     </QueryClientProvider>
   );

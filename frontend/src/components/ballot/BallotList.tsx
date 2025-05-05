@@ -6,6 +6,7 @@ import { useNetworkVariable } from "../../config/networkConfig";
 import { toast } from "sonner";
 import { CalendarIcon, Clock, Edit, ExternalLink, Vote } from "lucide-react";
 import { format } from "date-fns";
+import { normalizeTimestamp, formatTimeLeft } from "../../utils/formatUtils";
 
 // Import UI components
 import { Button } from "../ui/button";
@@ -32,8 +33,8 @@ interface BallotListProps {
 export default function BallotList({ suiClient }: BallotListProps) {
   const navigate = useNavigate();
   const currentAccount = useCurrentAccount();
-  const packageId = useNetworkVariable("packageId");
-  const dashboardId = useNetworkVariable("dashboardId");
+  const packageId = useNetworkVariable("packageId" as any);
+  const dashboardId = useNetworkVariable("dashboardId" as any);
   
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,11 +127,13 @@ export default function BallotList({ suiClient }: BallotListProps) {
             
             // Determine ballot status
             let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
-            const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
+            const expiration = Number(fields.expiration || 0);
+            const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+            console.log("BallotList - Expiration from blockchain (normalized):", normalizedExpiration);
             
             if (fields.status?.fields?.name === "Delisted") {
               status = 'Delisted';
-            } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+            } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
               status = 'Expired';
             }
             
@@ -139,7 +142,7 @@ export default function BallotList({ suiClient }: BallotListProps) {
               id: response.data.objectId,
               title: fields.title || "Untitled Ballot",
               description: fields.description || "No description",
-              expiration: expiration,
+              expiration: normalizedExpiration,
               isPrivate: Boolean(fields.is_private),
               candidateCount: candidates.length,
               totalVotes: Number(fields.total_votes || 0),
@@ -162,23 +165,6 @@ export default function BallotList({ suiClient }: BallotListProps) {
       setError("Failed to load ballots. Please try again later.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const formatTimeLeft = (expirationTimestamp: number) => {
-    const now = Date.now();
-    const diff = expirationTimestamp - now;
-    
-    if (diff <= 0) return "Expired";
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) {
-      return `${days}d ${hours}h left`;
-    } else {
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      return `${hours}h ${minutes}m left`;
     }
   };
 

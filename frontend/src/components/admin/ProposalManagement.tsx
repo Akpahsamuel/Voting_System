@@ -8,7 +8,7 @@ import { useAdminCap } from "../../hooks/useAdminCap";
 import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { toast } from "sonner";
 import { getObjectUrl, getTransactionUrl, openInExplorer } from "../../utils/explorerUtils";
-import { format } from "date-fns";
+import { formatDate as dateFormat, normalizeTimestamp, formatTimeLeft, formatRelativeTime } from "../../utils/formatUtils";
 import { 
   AlertCircle, 
   Check, 
@@ -137,6 +137,17 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
         const obj = item.data as SuiObjectData;
         if (obj.content?.dataType !== "moveObject") return null;
 
+        // Check if this is a proposal or ballot by examining the type
+        const type = obj.content.type as string;
+        const isProposal = type && type.includes("::proposal::Proposal");
+        const isBallot = type && type.includes("::ballot::Ballot");
+        
+        // Skip ballots - we only want to display proposals in this component
+        if (isBallot || !isProposal) {
+          console.log("Skipping ballot in proposal management:", obj.objectId);
+          return null;
+        }
+
         const fields = obj.content.fields as any;
         return {
           id: obj.objectId,
@@ -162,11 +173,27 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
   }
 
   const formatDate = (timestamp: number) => {
-    return format(new Date(timestamp), "PPP p");
+    const normalizedTime = normalizeTimestamp(timestamp);
+    if (normalizedTime === null) {
+      console.error('Invalid timestamp in formatDate:', timestamp);
+      return 'Invalid date';
+    }
+    return dateFormat(normalizedTime, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const isExpired = (timestamp: number) => {
-    return new Date(timestamp) < new Date();
+    const normalizedTime = normalizeTimestamp(timestamp);
+    if (normalizedTime === null) {
+      console.error('Invalid timestamp in isExpired:', timestamp);
+      return false; // Safer to assume not expired when unknown
+    }
+    return normalizedTime < Date.now();
   };
 
   const getTotalVotes = (yes: number, no: number) => {

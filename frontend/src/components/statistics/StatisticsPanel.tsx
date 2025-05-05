@@ -121,11 +121,11 @@ export const StatisticsPanel = () => {
   const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // Filter proposals by time range
-  const filteredProposals = proposals.filter((p) => {
-    if (timeRange === "week") {
-      return p.expiration * 1000 >= oneWeekAgo.getTime();
-    } else if (timeRange === "month") {
-      return p.expiration * 1000 >= oneMonthAgo.getTime();
+  const filteredProposals = proposals.filter(p => {
+    if (timeRange === 'week') {
+      return p.expiration >= oneWeekAgo.getTime();
+    } else if (timeRange === 'month') {
+      return p.expiration >= oneMonthAgo.getTime();
     }
     return true;
   });
@@ -176,7 +176,7 @@ export const StatisticsPanel = () => {
   
   // Create date groupings
   const dateGroups = sortedProposals.reduce((acc, proposal) => {
-    const date = new Date(proposal.expiration * 1000);
+    const date = new Date(proposal.expiration);
     const dateStr = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 
     if (!acc[dateStr]) {

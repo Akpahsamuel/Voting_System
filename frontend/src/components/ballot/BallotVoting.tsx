@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useBallotVotes } from "../../hooks/useBallotVotes";
-import { formatDate, formatTimeRemaining, isValidTimestamp } from "../../utils/formatUtils";
+import { formatDate, formatTimeLeft, isValidTimestamp, normalizeTimestamp } from "../../utils/formatUtils";
 import { 
   Clock, 
   CheckCircle2, 
@@ -192,7 +192,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                   <span className="text-sm text-muted-foreground">
                     {ballot.status === 'Active' 
                       ? isValidTimestamp(ballot.expiration) 
-                        ? `Time left: ${formatTimeRemaining(ballot.expiration)}` 
+                        ? `Time left: ${formatTimeLeft(normalizeTimestamp(ballot.expiration) || ballot.expiration)}` 
                         : "Invalid expiration date"
                       : `Ended: ${formatDate(ballot.expiration)}`
                     }

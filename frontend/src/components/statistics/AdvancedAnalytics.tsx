@@ -117,9 +117,9 @@ export const AdvancedAnalytics = () => {
   // Filter proposals by time range
   const filteredProposals = proposals.filter(p => {
     if (timeRange === 'week') {
-      return p.expiration * 1000 >= oneWeekAgo.getTime();
+      return p.expiration >= oneWeekAgo.getTime();
     } else if (timeRange === 'month') {
-      return p.expiration * 1000 >= oneMonthAgo.getTime();
+      return p.expiration >= oneMonthAgo.getTime();
     }
     return true;
   });

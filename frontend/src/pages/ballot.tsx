@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { Transaction } from "@mysten/sui/transactions";
 import { SuiTransactionBlockResponse } from "@mysten/sui/client";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
+import { formatDate, normalizeTimestamp, formatRelativeTime, formatTimeLeft } from "../utils/formatUtils";
 
 // Import UI components
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
@@ -184,13 +185,18 @@ export default function BallotPage() {
           candidates.push(candidateObj);
         }
         
+        // Parse expiration timestamp directly - no need to modify
+        const expiration = Number(fields.expiration || 0);
+        // Validate and normalize the timestamp
+        const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+        console.log("Ballot expiration from blockchain (normalized):", normalizedExpiration);
+        
         // Determine ballot status
         let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
-        const expiration = Number(fields.expiration || 0) * 1000; // Convert to milliseconds
         
         if (fields.status?.fields?.name === "Delisted") {
           status = 'Delisted';
-        } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+        } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
           status = 'Expired';
         }
         
@@ -199,7 +205,7 @@ export default function BallotPage() {
           id: response.data.objectId,
           title: fields.title || "Untitled Ballot",
           description: fields.description || "No description",
-          expiration: expiration,
+          expiration: normalizedExpiration,
           isPrivate: Boolean(fields.is_private),
           candidates: candidates,
           totalVotes: Number(fields.total_votes || 0),
@@ -404,6 +410,9 @@ export default function BallotPage() {
       console.log("Current local time (milliseconds):", now);
       console.log("Blockchain time (if available):", blockchainTime);
       console.log("Difference to expiration (local time):", ballot.expiration - now, "milliseconds");
+      console.log("Human-readable expiration time:", new Date(ballot.expiration).toLocaleString());
+      console.log("Relative time to expiration:", formatRelativeTime(ballot.expiration));
+      
       if (blockchainTime) {
         console.log("Difference to expiration (blockchain time):", ballot.expiration - blockchainTime, "milliseconds");
       }
@@ -811,7 +820,7 @@ export default function BallotPage() {
                 <div className="mb-6">
                   <h3 className="text-sm font-medium mb-2 flex items-center">
                     <Clock className="w-4 h-4 mr-2" />
-                    Voting Ends In
+                    Voting Ends In: {formatTimeLeft(ballot.expiration)}
                   </h3>
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="bg-muted rounded-lg p-2">
