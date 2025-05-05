@@ -29,13 +29,6 @@ const formSchema = z.object({
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   expiration: z.date({
     required_error: "Expiration date is required",
-  }).refine((date) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    return date >= tomorrow;
-  }, {
-    message: "Expiration date must be at least tomorrow",
   })
 });
 
@@ -49,6 +42,7 @@ interface CreateBallotProps {
 const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotCreated }: CreateBallotProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [expirationTime, setExpirationTime] = useState("12:00"); // Default to noon
   
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId" as any);
@@ -66,6 +60,17 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotC
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!adminCapId && !superAdminCapId) {
       toast.error("Admin capability not found");
+      return;
+    }
+
+    // Combine date and time into a single Date object
+    const [hours, minutes] = expirationTime.split(":").map(Number);
+    const expirationDateTime = new Date(values.expiration);
+    expirationDateTime.setHours(hours, minutes, 0, 0);
+
+    // Validation: expiration must be in the future (today with future time is allowed)
+    if (expirationDateTime <= new Date()) {
+      toast.error("Expiration must be in the future");
       return;
     }
 
@@ -91,7 +96,7 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotC
           tx.object(capId!),
           tx.pure.string(values.title),
           tx.pure.string(values.description),
-          tx.pure.u64(values.expiration.getTime()), // Use milliseconds timestamp like proposals do
+          tx.pure.u64(expirationDateTime.getTime()), // Use combined date+time
           tx.pure.bool(isPrivate),
         ],
       });
@@ -277,8 +282,19 @@ const CreateBallot = ({ adminCapId, superAdminCapId, hasSuperAdminCap, onBallotC
                       />
                     </PopoverContent>
                   </Popover>
+                  {/* Time Picker */}
+                  <div className="mt-2">
+                    <label htmlFor="expiration-time" className="block text-sm font-medium mb-1">Expiration Time</label>
+                    <input
+                      id="expiration-time"
+                      type="time"
+                      value={expirationTime}
+                      onChange={e => setExpirationTime(e.target.value)}
+                      className="border rounded px-2 py-1 text-sm w-40"
+                    />
+                  </div>
                   <FormDescription>
-                    The date when voting will end
+                    The date and time when voting will end
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

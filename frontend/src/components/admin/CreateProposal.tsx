@@ -30,19 +30,13 @@ const formSchema = z.object({
   description: z.string().min(10, { message: "Description must be at least 10 characters" }),
   expiration: z.date({
     required_error: "Expiration date is required",
-  }).refine((date) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    return date >= tomorrow;
-  }, {
-    message: "Expiration date must be at least tomorrow",
-  }),
+  })
 });
 
 const CreateProposal = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [expirationTime, setExpirationTime] = useState("12:00"); // Default to noon
   
   const packageId = useNetworkVariable("packageId" as any);
   const dashboardId = useNetworkVariable("dashboardId" as any);
@@ -60,24 +54,29 @@ const CreateProposal = () => {
   });
 
   const handleSubmit = async (values: z.infer<typeof formSchema>, event?: React.BaseSyntheticEvent) => {
-    // Prevent default form submission behavior
     if (event) {
       event.preventDefault();
     }
-    // Check if user has either AdminCap or SuperAdminCap
     if (!hasAdminCap && !hasSuperAdminCap) {
       toast.error("You need admin or super admin capability to create proposals");
       return;
     }
-    
+
+    // Combine date and time into a single Date object
+    const [hours, minutes] = expirationTime.split(":").map(Number);
+    const expirationDateTime = new Date(values.expiration);
+    expirationDateTime.setHours(hours, minutes, 0, 0);
+
+    // Validation: expiration must be in the future
+    if (expirationDateTime <= new Date()) {
+      toast.error("Expiration must be in the future");
+      return;
+    }
+
     try {
       setIsLoading(true);
-      
-      // Indicate to the user that the transaction is being processed
       toast.info("Creating proposal, please wait...");
-      
-      // Calculate the expiration timestamp (in milliseconds)
-      const expirationMs = values.expiration.getTime();
+      const expirationMs = expirationDateTime.getTime();
       
       // Create a new transaction block using the updated SDK
       const txb = new Transaction();
@@ -278,8 +277,20 @@ const CreateProposal = () => {
                         />
                       </PopoverContent>
                     </Popover>
+                    {/* Time Picker */}
+                    <div className="mt-2">
+                      <label htmlFor="expiration-time" className="block text-sm font-medium mb-1">Expiration Time</label>
+                      <input
+                        id="expiration-time"
+                        type="time"
+                        value={expirationTime}
+                        onChange={e => setExpirationTime(e.target.value)}
+                        className="border rounded px-2 py-1 text-sm w-40"
+                        disabled={isLoading}
+                      />
+                    </div>
                     <FormDescription>
-                      The proposal will be active until this date
+                      The date and time when the proposal will expire
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
