@@ -385,9 +385,26 @@ function parseBallot(data: SuiObjectData): Ballot | null {
     
     // Parse status
     let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
-    if (fields.status?.fields?.name === "Delisted") {
-      status = 'Delisted';
-    } else if (fields.status?.fields?.name === "Expired" || expiration < Date.now()) {
+    if (fields.status) {
+      // Check if status has a variant field
+      if (fields.status.variant === "Delisted") {
+        status = 'Delisted';
+      } else if (fields.status.variant === "Expired") {
+        status = 'Expired';
+      } else if (fields.status.variant === "Active") {
+        status = 'Active';
+      }
+      // Fallback to old format check
+      else if (fields.status.fields?.name === "Delisted") {
+        status = 'Delisted';
+      } else if (fields.status.fields?.name === "Expired") {
+        status = 'Expired';
+      } else if (fields.status.fields?.name === "Active") {
+        status = 'Active';
+      }
+    }
+    // Fallback to expiration check if status is not set
+    if (status === 'Active' && expiration < Date.now()) {
       status = 'Expired';
     }
 
@@ -409,27 +426,48 @@ function parseBallot(data: SuiObjectData): Ballot | null {
     const candidates: Candidate[] = [];
     
     for (let i = 0; i < candidatesData.length; i++) {
-      const candidate = candidatesData[i];
-      
-      // Skip invalid candidate entries
+      let candidate = candidatesData[i];
       if (!candidate) continue;
-      
+
+      // Handle nested fields (Sui serialization)
+      if (candidate.fields) {
+        candidate = candidate.fields;
+      }
+
       // Extract image URL which might be in different formats
       let imageUrl = undefined;
       if (candidate.image_url) {
         if (typeof candidate.image_url === 'string') {
           imageUrl = candidate.image_url;
         } else if (candidate.image_url.some) {
-          // Handle Option<String> from Sui Move
           imageUrl = candidate.image_url.some || undefined;
+        } else if (candidate.image_url.fields && candidate.image_url.fields.some) {
+          imageUrl = candidate.image_url.fields.some;
         }
       }
-      
+
+      // Extract vote count robustly
+      let votes = 0;
+      if (typeof candidate.vote_count !== 'undefined') {
+        votes = Number(candidate.vote_count);
+      } else if (typeof candidate.votes !== 'undefined') {
+        votes = Number(candidate.votes);
+      }
+
+      // Log candidate for debugging
+      console.log('Parsed candidate:', {
+        id: candidate.id,
+        name: candidate.name,
+        description: candidate.description,
+        votes,
+        imageUrl
+      });
+
       candidates.push({
-        id: Number(candidate.id || 0),
-        name: candidate.name || "",
-        description: candidate.description || "",
-        votes: Number(candidate.vote_count || 0),
+        id: Number(candidate.id || i),
+        name: candidate.name || `Candidate ${i+1}`,
+        description: candidate.description || '',
+        votes,
         imageUrl: imageUrl
       });
     }

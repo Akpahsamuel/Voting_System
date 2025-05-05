@@ -409,30 +409,21 @@ const BallotManagement = ({
             toast.success(`Delisted ballot: ${selectedBallot.title}`);
             setShowDelistDialog(false);
             setIsProcessing(false);
-            
-            // Update the UI by changing the ballot status
+            // Update the selectedBallot status immediately
             if (selectedBallot) {
               setSelectedBallot({
                 ...selectedBallot,
                 status: 'Delisted'
               });
-              
-              // Update the ballots list
-              if (propsBallots) {
-                // If using props, we can't update the parent state directly
-                // Notify the user that the action was successful
-                toast.success("Ballot status updated successfully");
-              } else {
-                // Update our internal state and trigger a refresh
-                setInternalBallots(prevBallots => 
-                  prevBallots.map(b => 
-                    b.id === selectedBallot.id ? {...b, status: 'Delisted'} : b
-                  )
-                );
-                // Refresh data after a short delay
-                setTimeout(() => triggerRefresh(), 1000);
-              }
             }
+            // Update the ballots list immediately
+            setInternalBallots(prevBallots =>
+              prevBallots.map(b =>
+                b.id === selectedBallot?.id ? { ...b, status: 'Delisted' } : b
+              )
+            );
+            // Always trigger a refresh after delisting
+            triggerRefresh();
           },
           onError: (error) => {
             console.error("Failed to delist ballot:", error);

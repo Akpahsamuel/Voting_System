@@ -678,6 +678,113 @@ export default function BallotPage() {
     }
   };
 
+  // Add a function to refetch the ballot
+  const refetchBallot = async () => {
+    if (!ballotId || !currentAccount) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await suiClient.getObject({
+        id: ballotId,
+        options: { showContent: true }
+      });
+      if (!response?.data || !response.data.content) {
+        throw new Error("Ballot not found or has no content");
+      }
+      if (response.data.content.dataType !== "moveObject") {
+        throw new Error("Invalid ballot data format");
+      }
+      const fields = response.data.content.fields as any;
+      // ... (repeat the candidate and status parsing logic from fetchBallot)
+      let candidatesData = [];
+      if (fields.candidates) {
+        if (Array.isArray(fields.candidates)) {
+          candidatesData = fields.candidates;
+        } else if (fields.candidates.vec && Array.isArray(fields.candidates.vec)) {
+          candidatesData = fields.candidates.vec;
+        } else if (fields.candidates.fields && fields.candidates.fields.contents) {
+          candidatesData = fields.candidates.fields.contents;
+        }
+      }
+      const candidates: Candidate[] = [];
+      for (let i = 0; i < candidatesData.length; i++) {
+        const candidate = candidatesData[i];
+        if (!candidate) continue;
+        let candidateFields = candidate;
+        if (candidate.fields) candidateFields = candidate.fields;
+        const candidateId = Number(candidateFields.id || i);
+        let candidateName = candidateFields.name || `Candidate ${i+1}`;
+        if (typeof candidateName === 'object' && candidateName?.fields?.some) {
+          candidateName = candidateName.fields.some;
+        }
+        let candidateDescription = candidateFields.description || "No description available";
+        if (typeof candidateDescription === 'object' && candidateDescription?.fields?.some) {
+          candidateDescription = candidateDescription.fields.some;
+        }
+        const candidateVotes = Number(candidateFields.vote_count || candidateFields.votes || 0);
+        let imageUrl = undefined;
+        if (candidateFields.image_url) {
+          if (typeof candidateFields.image_url === 'string') {
+            imageUrl = candidateFields.image_url;
+          } else if (candidateFields.image_url.some) {
+            imageUrl = candidateFields.image_url.some;
+          } else if (candidateFields.image_url.fields && candidateFields.image_url.fields.some) {
+            imageUrl = candidateFields.image_url.fields.some;
+          }
+        }
+        candidates.push({
+          id: candidateId,
+          name: candidateName,
+          description: candidateDescription,
+          votes: candidateVotes,
+          imageUrl: imageUrl
+        });
+      }
+      const expiration = Number(fields.expiration || 0);
+      const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+      let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
+      if (fields.status?.fields?.name === "Delisted") {
+        status = 'Delisted';
+      } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
+        status = 'Expired';
+      }
+      const ballotData: BallotData = {
+        id: response.data.objectId,
+        title: fields.title || "Untitled Ballot",
+        description: fields.description || "No description",
+        expiration: normalizedExpiration,
+        isPrivate: Boolean(fields.is_private),
+        candidates: candidates,
+        totalVotes: Number(fields.total_votes || 0),
+        status,
+        creator: fields.creator || "",
+        hasVoted: false,
+        votedFor: undefined
+      };
+      // Check if current user has voted
+      if (currentAccount && fields.voters && fields.voters.fields && fields.voters.fields.contents) {
+        try {
+          const votersTable = fields.voters.fields.contents;
+          for (const voter of votersTable) {
+            if (voter && voter.fields) {
+              const voterAddress = voter.fields.key;
+              if (voterAddress && voterAddress.toLowerCase() === currentAccount.address.toLowerCase()) {
+                ballotData.hasVoted = true;
+                ballotData.votedFor = Number(voter.fields.value);
+                break;
+              }
+            }
+          }
+        } catch (err) {}
+      }
+      setBallot(ballotData);
+    } catch (error) {
+      setError("Failed to load ballot data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!currentAccount) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -709,6 +816,13 @@ export default function BallotPage() {
             onClick={() => navigate("/ballots")}
           >
             Back to Ballots
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={refetchBallot}
+            disabled={loading}
+          >
+            Refresh
           </Button>
           <ConnectButton />
         </div>

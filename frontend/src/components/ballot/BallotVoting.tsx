@@ -46,7 +46,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
   const [selectedBallot, setSelectedBallot] = useState<Ballot | null>(null);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({});
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'expired'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'expired' | 'delisted'>('all');
 
   const account = useCurrentAccount();
   const { fetchBallotVotes } = useBallotVotes();
@@ -105,7 +105,8 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
   const filteredBallots = ballots.filter(ballot => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'active') return ballot.status === 'Active';
-    if (activeFilter === 'expired') return ballot.status === 'Expired' || ballot.status === 'Delisted';
+    if (activeFilter === 'expired') return ballot.status === 'Expired';
+    if (activeFilter === 'delisted') return ballot.status === 'Delisted';
     return true;
   });
 
@@ -143,13 +144,14 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
       <div className="mb-6">
         <Tabs 
           defaultValue="all" 
-          onValueChange={(value) => setActiveFilter(value as 'all' | 'active' | 'expired')}
+          onValueChange={(value) => setActiveFilter(value as 'all' | 'active' | 'expired' | 'delisted')}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
+          <TabsList className="grid w-full grid-cols-4 max-w-md mx-auto">
             <TabsTrigger value="all">All Ballots</TabsTrigger>
             <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="expired">Expired/Delisted</TabsTrigger>
+            <TabsTrigger value="expired">Expired</TabsTrigger>
+            <TabsTrigger value="delisted">Delisted</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -294,6 +296,22 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: function(context) {
+                              const label = context.label || '';
+                              const value = context.raw || 0;
+                              const total = selectedBallot.totalVotes;
+                              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+                              return `${label}: ${value} votes (${percentage}%)`;
+                            }
+                          }
+                        }
+                      }
                     }}
                   />
                 </div>
@@ -308,7 +326,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
               <h3 className="font-medium mb-4">Candidate Rankings</h3>
               {selectedBallot && selectedBallot.candidates.length > 0 ? (
                 <div className="space-y-3">
-                  {selectedBallot?.status !== 'Active' && selectedBallot?.candidates
+                  {selectedBallot.candidates
                     .slice()
                     .sort((a, b) => b.votes - a.votes)
                     .map((candidate, index) => (
@@ -327,6 +345,11 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                                   : 0}%` 
                               }}
                             ></div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {selectedBallot.totalVotes > 0 
+                              ? `${((candidate.votes / selectedBallot.totalVotes) * 100).toFixed(1)}% of total votes`
+                              : 'No votes yet'}
                           </div>
                         </div>
                         <div className="ml-3 text-sm font-medium">

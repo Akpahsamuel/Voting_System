@@ -131,9 +131,26 @@ export default function BallotList({ suiClient }: BallotListProps) {
             const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
             console.log("BallotList - Expiration from blockchain (normalized):", normalizedExpiration);
             
-            if (fields.status?.fields?.name === "Delisted") {
-              status = 'Delisted';
-            } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
+            if (fields.status) {
+              // Check if status has a variant field
+              if (fields.status.variant === "Delisted") {
+                status = 'Delisted';
+              } else if (fields.status.variant === "Expired") {
+                status = 'Expired';
+              } else if (fields.status.variant === "Active") {
+                status = 'Active';
+              }
+              // Fallback to old format check
+              else if (fields.status.fields?.name === "Delisted") {
+                status = 'Delisted';
+              } else if (fields.status.fields?.name === "Expired") {
+                status = 'Expired';
+              } else if (fields.status.fields?.name === "Active") {
+                status = 'Active';
+              }
+            }
+            // Fallback to expiration check if status is not set
+            if (status === 'Active' && normalizedExpiration < Date.now()) {
               status = 'Expired';
             }
             
