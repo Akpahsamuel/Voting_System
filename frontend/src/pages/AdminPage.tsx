@@ -467,6 +467,58 @@ export const AdminPage: FC = () => {
                     </CardContent>
                   </Card>
 
+                  <Card className="bg-indigo-900/20 border-indigo-500/30 hover:bg-indigo-900/30 transition-all">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium text-white/70">Total Ballots</CardTitle>
+                      <Vote className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold text-white">{ballots.length}</div>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <p className="text-xs text-white/50">
+                          {ballots.filter(b => b.status === "Active").length} active ballots
+                        </p>
+                        <Badge 
+                          variant="outline" 
+                          className={`
+                            ${ballots.length > 0 
+                              ? "text-indigo-300 border-indigo-500/30 bg-indigo-900/30" 
+                              : "text-amber-300 border-amber-500/30 bg-amber-900/30"}
+                          `}
+                        >
+                          {ballots.length > 0 ? "Active" : "No Ballots"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-cyan-900/20 border-cyan-500/30 hover:bg-cyan-900/30 transition-all">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium text-white/70">Active Ballots</CardTitle>
+                      <Vote className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold text-white">{ballots.filter(b => b.status === "Active").length}</div>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <p className="text-xs text-white/50">
+                          {ballots.length > 0 
+                            ? (ballots.filter(b => b.status === "Active").length / ballots.length * 100).toFixed(1) 
+                            : "0"}% of total
+                        </p>
+                        <Badge 
+                          variant="outline" 
+                          className={`
+                            ${ballots.filter(b => b.status === "Active").length > 0 
+                              ? "text-cyan-300 border-cyan-500/30 bg-cyan-900/30" 
+                              : "text-amber-300 border-amber-500/30 bg-amber-900/30"}
+                          `}
+                        >
+                          {ballots.filter(b => b.status === "Active").length > 0 ? "Voting Open" : "No Active Ballots"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   <Card className="bg-purple-900/20 border-purple-500/30 hover:bg-purple-900/30 transition-all">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium text-white/70">Total Votes</CardTitle>
