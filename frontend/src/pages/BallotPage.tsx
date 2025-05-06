@@ -3,11 +3,10 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../config/networkConfig";
 import { Badge } from "../components/ui/badge";
-import { FileText, LayoutDashboard, Settings, BarChart2, Users, Clock } from "lucide-react";
+import { FileText } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { SuiObjectData, SuiClient } from "@mysten/sui/client";
 import BallotVoting from "../components/ballot/BallotVoting";
-import VoterRegistry from "../components/admin/VoterRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -42,18 +41,7 @@ export const BallotPage: FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Analytics data state
-  const [analyticsData, setAnalyticsData] = useState({
-    totalBallots: 0,
-    activeBallots: 0,
-    delistedBallots: 0,
-    totalVotes: 0,
-    votesLastWeek: 0,
-    votesWeeklyChange: 5.7,
-    ballotsLastWeek: 0,
-    ballotsWeeklyChange: 10.2,
-    activeVoters: 156,
-  });
+  // Removed analytics data state
 
   // Fetch dashboard data to get ballot IDs
   const { data: dashboardResponse } = useSuiClientQuery(
@@ -93,57 +81,59 @@ export const BallotPage: FC = () => {
         // Create a SuiClient instance
         const suiClient = new SuiClient({ url: "https://fullnode.devnet.sui.io" });
 
-        // Fetch each ballot object
-        for (const id of ballotIds) {
+        // Batch fetch ballot objects instead of fetching them one by one
+        console.log(`Batch fetching ${ballotIds.length} objects`);
+        const batchSize = 50; // Optimal batch size to avoid request size limits
+        
+        // Process ballots in batches
+        for (let i = 0; i < ballotIds.length; i += batchSize) {
+          const batchIds = ballotIds.slice(i, i + batchSize);
+          
+          // Skip empty batches
+          if (batchIds.length === 0) continue;
+          
           try {
-            const response = await suiClient.getObject({
-              id,
+            // Fetch multiple objects in a single request
+            const batchResponse = await suiClient.multiGetObjects({
+              ids: batchIds,
               options: {
                 showContent: true
               }
             });
-
-            if (response.data && response.data.content?.dataType === "moveObject") {
-              // Check if this is actually a ballot, not a proposal
-              const type = response.data.content.type as string;
-              const isBallot = type && type.includes("::ballot::Ballot");
-              
-              if (!isBallot) {
-                console.log("Skipping non-ballot object in ballot view:", id);
-                continue;
-              }
-              
-              const ballot = parseBallot(response.data);
-              if (ballot) {
-                fetchedBallots.push(ballot);
-                totalVotes += ballot.totalVotes;
+            
+            // Process each object in the batch response
+            for (const response of batchResponse) {
+              if (response.data && response.data.content?.dataType === "moveObject") {
+                // Check if this is actually a ballot, not a proposal
+                const type = response.data.content.type as string;
+                const isBallot = type && type.includes("::ballot::Ballot");
                 
-                if (ballot.status === 'Active') {
-                  activeBallotCount++;
-                } else if (ballot.status === 'Delisted') {
-                  delistedBallotCount++;
+                if (!isBallot) {
+                  console.log("Skipping non-ballot object in ballot view:", response.data.objectId);
+                  continue;
+                }
+                
+                const ballot = parseBallot(response.data);
+                if (ballot) {
+                  fetchedBallots.push(ballot);
+                  totalVotes += ballot.totalVotes;
+                  
+                  if (ballot.status === 'Active') {
+                    activeBallotCount++;
+                  } else if (ballot.status === 'Delisted') {
+                    delistedBallotCount++;
+                  }
                 }
               }
             }
           } catch (error) {
-            console.error(`Error fetching ballot ${id}:`, error);
+            console.error(`Error fetching batch of ballots:`, error);
           }
         }
 
+        console.log(`Successfully loaded ${fetchedBallots.length} ballots`);
         setBallots(fetchedBallots);
         
-        // Update analytics with new values directly instead of referencing previous state
-        setAnalyticsData({
-          totalBallots: fetchedBallots.length,
-          activeBallots: activeBallotCount,
-          delistedBallots: delistedBallotCount,
-          totalVotes: totalVotes,
-          votesLastWeek: 0,
-          votesWeeklyChange: 5.7,
-          ballotsLastWeek: 0,
-          ballotsWeeklyChange: 10.2,
-          activeVoters: 156,
-        });
       } catch (error) {
         console.error("Error fetching ballots:", error);
       } finally {
@@ -153,6 +143,8 @@ export const BallotPage: FC = () => {
 
     if (account && ballotIds.length > 0) {
       fetchBallots();
+    } else {
+      setIsLoading(false);
     }
   }, [account, ballotIds]); // Remove analyticsData from dependencies
 
@@ -191,21 +183,11 @@ export const BallotPage: FC = () => {
           </div>
         </div>
 
-      <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 mb-8">
+      <Tabs defaultValue="voting" className="w-full">
+        <TabsList className="grid grid-cols-1 mb-8">
           <TabsTrigger value="voting" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden md:inline">Voting</span>
-          </TabsTrigger>
-          
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart2 className="h-4 w-4" />
-            <span className="hidden md:inline">Analytics</span>
-          </TabsTrigger>
-          
-          <TabsTrigger value="voters" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span className="hidden md:inline">Voters</span>
           </TabsTrigger>
         </TabsList>
 
@@ -215,94 +197,6 @@ export const BallotPage: FC = () => {
             isLoading={isLoading} 
             onViewBallot={handleViewBallot} 
           />
-        </TabsContent>
-
-        <TabsContent value="analytics" className="p-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Total Ballots
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.totalBallots}</div>
-                <p className="text-xs text-muted-foreground">
-                  +{analyticsData.ballotsWeeklyChange}% from last week
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Active Ballots
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.activeBallots}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Delisted Ballots
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.delistedBallots}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart2 className="h-4 w-4" />
-                  Total Votes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.totalVotes}</div>
-                <p className="text-xs text-muted-foreground">
-                  +{analyticsData.votesWeeklyChange}% from last week
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Active Voters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analyticsData.activeVoters}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm">
-                  <Badge variant="outline" className="mr-1">New</Badge>
-                  {ballots.length > 0 ? ballots[0].title : "No recent ballots"}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-        <TabsContent value="voters" className="p-0">
-          <VoterRegistry />
         </TabsContent>
       </Tabs>
     </div>

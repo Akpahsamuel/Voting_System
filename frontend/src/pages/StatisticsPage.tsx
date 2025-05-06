@@ -1,8 +1,10 @@
 import { FC, useEffect, useState } from 'react';
 import { StatisticsPanel } from '../components/statistics/StatisticsPanel';
+import { BallotStatisticsPanel } from '../components/statistics/BallotStatisticsPanel';
 import { Proposal } from '../types';
 import { useSuiClientQuery } from '@mysten/dapp-kit';
 import { Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 // Import SuiID type
 type SuiID = string;
@@ -105,14 +107,27 @@ export const StatisticsPage: FC = () => {
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8 text-white">Governance Statistics</h1>
+      <h1 className="text-3xl font-bold mb-4 text-white">Platform Statistics</h1>
       
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
         </div>
       ) : (
-        <StatisticsPanel proposals={proposals} />
+        <Tabs defaultValue="proposals" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+            <TabsTrigger value="proposals">Governance Proposals</TabsTrigger>
+            <TabsTrigger value="ballots">Ballots</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="proposals" className="mt-0">
+            <StatisticsPanel proposals={proposals} />
+          </TabsContent>
+          
+          <TabsContent value="ballots" className="mt-0">
+            <BallotStatisticsPanel />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

@@ -53,6 +53,7 @@ export const AdvancedAnalytics = () => {
     if (dashboardData?.data?.content?.dataType !== "moveObject") return [];
     
     const fields = dashboardData.data.content.fields as any;
+    // Only return proposal IDs, not ballot IDs
     return fields?.proposals_ids || [];
   }
   
@@ -78,18 +79,28 @@ export const AdvancedAnalytics = () => {
         if (obj.content?.dataType !== "moveObject") return null;
         
         const fields = obj.content.fields as any;
+        
+        // Check if this is a proposal and not a ballot
+        // Proposals have voted_yes_count and voted_no_count fields
+        // Ballots have candidates with votes
+        if (!fields.voted_yes_count && !fields.voted_no_count) {
+          console.log("Advanced Analytics - Skipping non-proposal object:", obj.objectId);
+          return null;
+        }
+        
         return {
           id: obj.objectId,
-          title: fields.title,
-          votedYesCount: Number(fields.voted_yes_count),
-          votedNoCount: Number(fields.voted_no_count),
-          expiration: Number(fields.expiration),
-          status: fields.status.variant,
+          title: fields.title || "Untitled Proposal",
+          votedYesCount: Number(fields.voted_yes_count) || 0,
+          votedNoCount: Number(fields.voted_no_count) || 0,
+          expiration: Number(fields.expiration) || 0,
+          status: fields.status?.variant || "Unknown",
           creator: fields.creator || "Unknown"
         };
       })
       .filter((item): item is ProposalData => item !== null);
     
+    console.log("Advanced Analytics - Filtered proposals:", parsedProposals.length);
     setProposals(parsedProposals);
   }, [proposalsData]);
 

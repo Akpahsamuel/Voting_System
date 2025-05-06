@@ -62,6 +62,7 @@ export const StatisticsPanel = () => {
     if (dashboardData?.data?.content?.dataType !== "moveObject") return [];
 
     const fields = dashboardData.data.content.fields as any;
+    // Only return proposal IDs, not ballot IDs
     return fields?.proposals_ids || [];
   }
 
@@ -84,6 +85,15 @@ export const StatisticsPanel = () => {
         if (obj.content?.dataType !== "moveObject") return null;
 
         const fields = obj.content.fields as any;
+        
+        // Check if this is a proposal and not a ballot
+        // Proposals have voted_yes_count and voted_no_count fields
+        // Ballots have candidates with votes
+        if (!fields.voted_yes_count && !fields.voted_no_count) {
+          console.log("Skipping non-proposal object:", obj.objectId);
+          return null;
+        }
+        
         return {
           id: obj.objectId,
           title: fields.title || "Untitled Proposal",
@@ -96,6 +106,7 @@ export const StatisticsPanel = () => {
       })
       .filter((item): item is ProposalData => item !== null);
 
+    console.log("Filtered proposals for statistics:", parsedProposals.length);
     setProposals(parsedProposals);
   }, [proposalsData]);
 
