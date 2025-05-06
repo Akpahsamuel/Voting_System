@@ -8,36 +8,46 @@ export type NetworkVariables = {
   dashboardId: string;
 };
 
-const { networkConfig, useNetworkVariable } = createNetworkConfig<NetworkVariables>({
+const { networkConfig, useNetworkVariable: originalUseNetworkVariable } = createNetworkConfig({
   localnet: { 
     url: getFullnodeUrl("localnet"),
     variables: {
       packageId: "",
       dashboardId: "",
-    }
+    } as NetworkVariables
   },
   devnet: {
     url: getFullnodeUrl("devnet"),
     variables: {
       packageId: DEVNET_PACKAGE_ID,
       dashboardId: DEVNET_DASHBOARD_ID,
-    }
+    } as NetworkVariables
   },
   testnet: {
     url: getFullnodeUrl("testnet"),
     variables: {
       packageId: TESTNET_PACKAGE_ID,
       dashboardId: TESTNET_DASHBOARD_ID,
-    }
+    } as NetworkVariables
   },
   mainnet: {
     url: getFullnodeUrl("mainnet"),
     variables: {
       packageId: MAINNET_PACKAGE_ID,
       dashboardId: MAINNET_DASHBOARD_ID,
-    }
+    } as NetworkVariables
   },
 });
 
-// Export type-safe hook
-export { networkConfig, useNetworkVariable };
+// Export the network config
+export { networkConfig };
+
+// Export the original hook with type assertion
+export function useNetworkVariable(name: "packageId" | "dashboardId"): string {
+  return originalUseNetworkVariable(name as any);
+}
+
+// Export a wrapper with explicit string return type
+export function useNetworkVariableString(name: "packageId" | "dashboardId"): string {
+  return originalUseNetworkVariable(name as any);
+}

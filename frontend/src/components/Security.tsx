@@ -1,9 +1,9 @@
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Shield, Key, Users, FileText } from "lucide-react";
+import { SecurityCardProps } from "../types";
 
-const SecurityCard = ({ icon: Icon, title, description, delay }) => {
+const SecurityCard = ({ icon: Icon, title, description, delay }: SecurityCardProps) => {
   const [hovered, setHovered] = useState(false);
   
   return (
@@ -38,7 +38,7 @@ const SecurityCard = ({ icon: Icon, title, description, delay }) => {
 };
 
 const Security = () => {
-  const securityFeatures = [
+  const securityFeatures: SecurityCardProps[] = [
     {
       icon: Shield,
       title: "Blockchain Immutability",

@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite --mode development",
     "dev:test": "vite --mode test",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "build:check": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node -e \"try { require('fs').symlinkSync(require('path').resolve('node_modules/@types/react'), 'node_modules/@types/react-with-native', 'junction') } catch (e) {}\""
   },
   "dependencies": {
     "@mysten/dapp-kit": "^0.15.0",

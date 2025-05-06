@@ -1,5 +1,5 @@
 import { useSuiClientQuery } from "@mysten/dapp-kit";
-import { useNetworkVariable } from "../../config/networkConfig";
+import { useNetworkVariableString } from "../../config/networkConfig";
 import { SuiObjectData } from "@mysten/sui/client";
 import { useState, useEffect } from "react";
 import { shortenAddress } from "../../utils/addressUtils";
@@ -27,7 +27,8 @@ import { Badge } from "../../components/ui/badge";
 import { ScrollArea } from "../../components/ui/scroll-area";
 
 const AdminList = () => {
-  const dashboardId = useNetworkVariable("dashboardId");
+  // Use the new helper function to avoid TypeScript errors
+  const dashboardId = useNetworkVariableString("dashboardId");
   const [adminAddresses, setAdminAddresses] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);

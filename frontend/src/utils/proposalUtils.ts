@@ -48,8 +48,17 @@ export async function isUserRegisteredForProposal(
     // Process the result
     if (result.results && result.results[0] && result.results[0].returnValues) {
       const returnValue = result.results[0].returnValues[0];
-      // The return value can be a boolean or a string "true"/"false"
-      return returnValue === true || returnValue === 'true';
+      
+      // Handle the return value correctly based on its type
+      if (typeof returnValue === 'boolean') {
+        return returnValue;
+      } else if (Array.isArray(returnValue) && returnValue.length > 0) {
+        // For array return values, check if the first element is a truthy string
+        return returnValue[0] === 'true' || returnValue[0] === '1';
+      } else if (typeof returnValue === 'string') {
+        // For string return values
+        return returnValue === 'true' || returnValue === '1';
+      }
     }
     
     return false;
