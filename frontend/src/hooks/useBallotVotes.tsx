@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import { useCurrentAccount, useSuiClientQuery } from "@mysten/dapp-kit";
-import { useNetworkVariable } from "../config/networkConfig";
+import { useNetworkVariableString } from '../config/networkConfig';
 
 export const useBallotVotes = () => {
   const account = useCurrentAccount();
-  const packageId = useNetworkVariable("packageId");
+  const packageId = useNetworkVariableString("packageId");
 
   // Query for BallotVoteProof NFTs owned by the user
   const { data: ballotVotesResponse, refetch } = useSuiClientQuery(

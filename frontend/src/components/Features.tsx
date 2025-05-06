@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Shield, Eye, UserCheck, BarChart3 } from "lucide-react";
+import { FeatureCardProps } from "../types";
 
-const FeatureCard = ({ icon: Icon, title, description, delay }) => {
+const FeatureCard = ({ icon: Icon, title, description, delay }: FeatureCardProps) => {
   const [hovered, setHovered] = useState(false);
   
   return (
@@ -29,7 +30,7 @@ const FeatureCard = ({ icon: Icon, title, description, delay }) => {
 };
 
 const Features = () => {
-  const features = [
+  const features: FeatureCardProps[] = [
     {
       icon: Shield,
       title: "UNCOMPROMISING_SECURITY",

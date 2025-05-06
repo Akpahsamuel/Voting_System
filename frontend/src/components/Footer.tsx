@@ -1,8 +1,8 @@
-
 import { motion } from "framer-motion";
 import { FileText, Github, Shield, Mail, Twitter, MessageSquare, Link } from "lucide-react";
+import { FooterLinkProps, SocialLinkProps } from "../types";
 
-const FooterLink = ({ href, label, icon: Icon }) => (
+const FooterLink = ({ href, label, icon: Icon }: FooterLinkProps) => (
   <a 
     href={href} 
     className="flex items-center text-foreground/70 hover:text-foreground transition-colors"
@@ -14,7 +14,7 @@ const FooterLink = ({ href, label, icon: Icon }) => (
   </a>
 );
 
-const SocialLink = ({ href, icon: Icon }) => (
+const SocialLink = ({ href, icon: Icon }: SocialLinkProps) => (
   <a 
     href={href} 
     className="w-10 h-10 rounded-full glass-button flex items-center justify-center text-foreground/80 hover:text-foreground transition-colors"

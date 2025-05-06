@@ -1,9 +1,9 @@
 import { useCurrentAccount, useSuiClientQuery } from "@mysten/dapp-kit"
-import { useNetworkVariable } from "../config/networkConfig";
+import { useNetworkVariableString } from '../config/networkConfig';
 
 export const useVoteNfts = () => {
   const account = useCurrentAccount();
-  const packageId = useNetworkVariable("packageId");
+  const packageId = useNetworkVariableString('packageId');
 
   return useSuiClientQuery(
     "getOwnedObjects",

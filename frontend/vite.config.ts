@@ -16,6 +16,24 @@ export default defineConfig(({ mode }) => ({
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
+			"@/components": path.resolve(__dirname, "./src/components"),
+			"@/lib": path.resolve(__dirname, "./src/lib"),
+			"@/hooks": path.resolve(__dirname, "./src/hooks"),
 		},
+	},
+	build: {
+		outDir: "dist",
+		sourcemap: true,
+		commonjsOptions: {
+			transformMixedEsModules: true,
+		},
+	},
+	optimizeDeps: {
+		esbuildOptions: {
+			target: "es2020",
+		},
+	},
+	esbuild: {
+		logOverride: { "this-is-undefined-in-esm": "silent" },
 	},
 }));

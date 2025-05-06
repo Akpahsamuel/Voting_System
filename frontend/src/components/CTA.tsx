@@ -1,8 +1,8 @@
-
 import { motion } from "framer-motion";
 import { Plus, Vote, Rocket } from "lucide-react";
+import { CTAProps } from "../types";
 
-const CTAButton = ({ icon: Icon, label, description, primary = false, delay = 0 }) => {
+const CTAButton = ({ icon: Icon, label, description, primary = false, delay = 0 }: CTAProps) => {
   return (
     <motion.div
       className={`relative flex flex-col items-center group ${primary ? '' : 'md:mt-6'}`}

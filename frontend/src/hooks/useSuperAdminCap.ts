@@ -1,12 +1,12 @@
 import { useCurrentAccount, useSuiClient, useSuiClientQuery } from '@mysten/dapp-kit';
-import { useNetworkVariable } from '../config/networkConfig';
+import { useNetworkVariableString } from '../config/networkConfig';
 import { useCallback, useEffect, useState } from 'react';
 
 export function useSuperAdminCap() {
   const account = useCurrentAccount();
   const walletAddress = account?.address;
-  const packageId = useNetworkVariable('packageId');
-  const dashboardId = useNetworkVariable('dashboardId'); 
+  const packageId = useNetworkVariableString('packageId');
+  const dashboardId = useNetworkVariableString('dashboardId'); 
   const [superAdminCapId, setSuperAdminCapId] = useState<string | null>(null);
   const [hasSuperAdminCap, setHasSuperAdminCap] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
