@@ -127,9 +127,7 @@ export const StatisticsView: FC = () => {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Platform Statistics</h1>
           
-          {!account ? (
-            <ConnectButton className="bg-blue-600 hover:bg-blue-700" />
-          ) : null}
+          {/* Removed duplicate ConnectButton since Navbar already has one */}
         </div>
 
         {isLoading ? (
