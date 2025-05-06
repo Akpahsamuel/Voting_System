@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useNetworkVariable } from "../../config/networkConfig";
@@ -17,13 +17,16 @@ import {
   Clock,
   Check,
   X,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { formatDate, normalizeTimestamp } from "../../utils/formatUtils";
+import { Ballot, fetchBallotsOptimized, clearBallotCache } from "../../utils/ballotUtils";
 
 // Import shadcn components
 import { Button } from "../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -62,18 +65,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-
-interface Ballot {
-  id: string;
-  title: string;
-  description: string;
-  expiration: number;
-  isPrivate: boolean;
-  candidates: Candidate[];
-  totalVotes: number;
-  status: 'Active' | 'Delisted' | 'Expired';
-  creator: string;
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface BallotManagementProps {
   ballots?: Ballot[];
@@ -82,6 +74,18 @@ interface BallotManagementProps {
   superAdminCapId: string | undefined;
   hasSuperAdminCap: boolean;
 }
+
+// Cache for ballots to avoid refetching
+let ballotCache: {
+  ballots: Ballot[],
+  timestamp: number
+} | null = null;
+
+// Cache expiration time (5 minutes)
+const CACHE_EXPIRATION = 5 * 60 * 1000;
+
+// Items per page for pagination
+const ITEMS_PER_PAGE = 10;
 
 const BallotManagement = ({ 
   ballots: propsBallots,
@@ -93,6 +97,17 @@ const BallotManagement = ({
   // Use internal state when ballots aren't passed as props
   const [internalBallots, setInternalBallots] = useState<Ballot[]>([]);
   const [internalLoading, setInternalLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<{current: number, total: number} | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalBallots, setTotalBallots] = useState(0);
+  
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Determine whether to use props or internal state
   const ballots = propsBallots || internalBallots;
@@ -119,10 +134,45 @@ const BallotManagement = ({
   // State to trigger refreshes
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Filter ballots based on status and search query
+  const filteredBallots = useMemo(() => {
+    return ballots.filter(ballot => {
+      // Apply status filter
+      if (statusFilter !== "all" && ballot.status.toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+      
+      // Apply search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          ballot.title.toLowerCase().includes(query) ||
+          ballot.description.toLowerCase().includes(query) ||
+          ballot.candidates.some(c => c.name.toLowerCase().includes(query))
+        );
+      }
+      
+      return true;
+    });
+  }, [ballots, statusFilter, searchQuery]);
+  
+  // Calculate paginated ballots
+  const paginatedBallots = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredBallots.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredBallots, currentPage]);
+  
+  // Calculate total pages
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredBallots.length / ITEMS_PER_PAGE);
+  }, [filteredBallots]);
+
   // Fetch ballots if they aren't passed as props
   useEffect(() => {
     if (!propsBallots) {
       fetchBallots();
+    } else {
+      setTotalBallots(propsBallots.length);
     }
   }, [propsBallots, dashboardId, refreshTrigger]);
   
@@ -133,146 +183,42 @@ const BallotManagement = ({
     }
 
     setInternalLoading(true);
+    setLoadingProgress(0);
+    setBatchStatus(null);
     
     try {
-      console.log("Fetching ballots from dashboard:", dashboardId);
-      
-      // Get dashboard object to fetch ballot IDs
-      const dashboardResponse = await suiClient.getObject({
-        id: dashboardId as string,
-        options: {
-          showContent: true
-        }
-      });
-      
-      if (!dashboardResponse?.data || !dashboardResponse.data.content) {
-        throw new Error("Dashboard not found or has no content");
-      }
-
-      // Extract ballot IDs from dashboard
-      const fields = dashboardResponse.data.content.dataType === "moveObject" 
-        ? dashboardResponse.data.content.fields as any 
-        : null;
-      
-      if (!fields) {
-        throw new Error("Invalid dashboard data format");
-      }
-      
-      console.log("Dashboard fields:", fields);
-      
-      // Extract ballot IDs (proposals_ids in the contract)
-      let ballotIds: string[] = [];
-      
-      if (fields.proposals_ids) {
-        if (Array.isArray(fields.proposals_ids)) {
-          ballotIds = fields.proposals_ids;
-        } else if (fields.proposals_ids.vec && Array.isArray(fields.proposals_ids.vec)) {
-          ballotIds = fields.proposals_ids.vec;
-        }
-      }
-      
-      console.log("Found ballot IDs:", ballotIds);
-      
-      if (ballotIds.length === 0) {
-        setInternalBallots([]);
-        setInternalLoading(false);
-        return; // No ballots to fetch
-      }
-      
-      // Fetch each ballot object
-      const fetchedBallots: Ballot[] = [];
-      
-      for (const id of ballotIds) {
-        try {
-          const response = await suiClient.getObject({
-            id,
-            options: {
-              showContent: true
-            }
-          });
-
-          if (response.data && response.data.content?.dataType === "moveObject") {
-            const fields = response.data.content.fields as any;
-            
-            // Parse candidates data
-            let candidatesData = [];
-            if (fields.candidates) {
-              if (Array.isArray(fields.candidates)) {
-                candidatesData = fields.candidates;
-              } else if (fields.candidates.vec && Array.isArray(fields.candidates.vec)) {
-                candidatesData = fields.candidates.vec;
-              }
-            }
-            
-            // Parse candidates
-            const candidates: Candidate[] = [];
-            for (let i = 0; i < candidatesData.length; i++) {
-              const candidate = candidatesData[i];
-              
-              if (!candidate) continue;
-              
-              // Extract image URL which might be in different formats
-              let imageUrl = undefined;
-              if (candidate.image_url) {
-                if (typeof candidate.image_url === 'string') {
-                  imageUrl = candidate.image_url;
-                } else if (candidate.image_url.some) {
-                  // Handle Option<String> from Sui Move
-                  imageUrl = candidate.image_url.some || undefined;
-                }
-              }
-              
-              candidates.push({
-                id: Number(candidate.id || 0),
-                name: candidate.name || "",
-                description: candidate.description || "",
-                votes: Number(candidate.vote_count || 0),
-                imageUrl: imageUrl
-              });
-            }
-            
-            // Parse expiration timestamp
-            const expiration = Number(fields.expiration || 0);
-            const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
-            console.log("BallotManagement - Expiration from blockchain (normalized):", normalizedExpiration);
-            
-            // Determine ballot status
-            let status: 'Active' | 'Delisted' | 'Expired' = 'Active';
-            
-            if (fields.status?.fields?.name === "Delisted") {
-              status = 'Delisted';
-            } else if (fields.status?.fields?.name === "Expired" || normalizedExpiration < Date.now()) {
-              status = 'Expired';
-            }
-            
-            // Create ballot object
-            const ballot: Ballot = {
-              id: response.data.objectId,
-              title: fields.title || "Untitled Ballot",
-              description: fields.description || "No description",
-              expiration: normalizedExpiration,
-              isPrivate: Boolean(fields.is_private),
-              candidates,
-              totalVotes: Number(fields.total_votes || 0),
-              status,
-              creator: fields.creator || ""
-            };
-            
-            fetchedBallots.push(ballot);
+      // Use the optimized ballot fetching utility
+      const fetchedBallots = await fetchBallotsOptimized(
+        suiClient as any, // Use type assertion to avoid SuiClient version mismatch 
+        dashboardId as string, 
+        {
+          // Set force fresh if this is a manual refresh
+          forceFresh: refreshTrigger > 0,
+          
+          // Track loading progress
+          onProgress: (progress) => {
+            setLoadingProgress(progress);
+          },
+          
+          // Track batch loading
+          onLoadingBatch: (current, total) => {
+            setIsFetchingMore(current > 1);
+            setBatchStatus({ current, total });
           }
-        } catch (err) {
-          console.error(`Error fetching ballot ${id}:`, err);
-          // Continue with other ballots
         }
-      }
+      );
       
-      console.log("Fetched ballots:", fetchedBallots);
+      console.log(`Successfully loaded ${fetchedBallots.length} ballots`);
       setInternalBallots(fetchedBallots);
+      setTotalBallots(fetchedBallots.length);
+      
     } catch (err) {
       console.error("Error fetching ballots:", err);
       toast.error("Failed to load ballots");
     } finally {
       setInternalLoading(false);
+      setIsFetchingMore(false);
+      setBatchStatus(null);
     }
   };
 
@@ -706,15 +652,24 @@ const BallotManagement = ({
   };
 
   const handleRefreshBallots = () => {
+    clearBallotCache(dashboardId as string);
     fetchBallots();
   };
 
   // Helper function to trigger a refresh
   const triggerRefresh = () => {
+    clearBallotCache(dashboardId as string);
     setRefreshTrigger(prev => prev + 1);
   };
 
-  if (isLoading) {
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  if (isLoading && !isFetchingMore) {
     return (
       <Card>
         <CardHeader>
@@ -723,8 +678,26 @@ const BallotManagement = ({
             Loading ballots...
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+          
+          {loadingProgress > 0 && (
+            <div className="w-full max-w-xs mt-2">
+              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+              <div className="text-xs text-white/60 mt-1 text-center">
+                {batchStatus ? (
+                  <>Loading batch {batchStatus.current} of {batchStatus.total}</>
+                ) : (
+                  <>Loading... {loadingProgress}%</>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -752,11 +725,45 @@ const BallotManagement = ({
           </Button>
         </CardHeader>
         <CardContent>
-          {ballots.length === 0 ? (
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
+            <div className="flex-1">
+              <Input 
+                placeholder="Search ballots..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="w-full sm:w-48">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="delisted">Delisted</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {isFetchingMore && (
+            <div className="flex justify-center mb-4">
+              <div className="flex items-center gap-2 text-sm text-white/60">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading more ballots...</span>
+              </div>
+            </div>
+          )}
+          
+          {filteredBallots.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">No ballots found</p>
             </div>
-          ) : (
+          ) :
             <Table>
               <TableHeader>
                 <TableRow>
@@ -769,7 +776,7 @@ const BallotManagement = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ballots.map((ballot) => (
+                {paginatedBallots.map((ballot) => (
                   <TableRow key={ballot.id}>
                     <TableCell className="font-medium">{ballot.title}</TableCell>
                     <TableCell>{getStatusBadge(ballot.status === 'Active' && ballot.expiration < Date.now() ? 'Expired' : ballot.status)}</TableCell>
@@ -781,8 +788,7 @@ const BallotManagement = ({
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
+                          <Button variant="ghost" size="icon">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -792,38 +798,33 @@ const BallotManagement = ({
                             <Eye className="mr-2 h-4 w-4" />
                             View Candidates
                           </DropdownMenuItem>
-                          {ballot.status === 'Active' && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleAddCandidate(ballot)}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Candidate
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleDelistBallot(ballot)}
-                                className="text-red-600"
-                              >
-                                <Ban className="mr-2 h-4 w-4" />
-                                Delist Ballot
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {ballot.status === 'Delisted' && (
+                          
+                          <DropdownMenuItem onClick={() => handleAddCandidate(ballot)}>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Add Candidate
+                          </DropdownMenuItem>
+                          
+                          <DropdownMenuSeparator />
+                          
+                          {ballot.status === 'Active' ? (
+                            <DropdownMenuItem onClick={() => handleDelistBallot(ballot)}>
+                              <Ban className="mr-2 h-4 w-4" />
+                              Delist Ballot
+                            </DropdownMenuItem>
+                          ) : ballot.status === 'Delisted' ? (
                             <DropdownMenuItem onClick={() => handleActivateBallot(ballot)}>
-                              <Check className="mr-2 h-4 w-4 text-green-600" />
+                              <Check className="mr-2 h-4 w-4" />
                               Activate Ballot
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {hasSuperAdminCap && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteBallot(ballot)}
-                              className="text-red-600"
-                            >
-                              <Trash className="mr-2 h-4 w-4" />
-                              Delete Ballot
-                            </DropdownMenuItem>
-                          )}
+                          ) : null}
+                          
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteBallot(ballot)}
+                            className="text-red-500 focus:text-red-500"
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete Ballot
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -831,8 +832,37 @@ const BallotManagement = ({
                 ))}
               </TableBody>
             </Table>
+          }
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-sm">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </CardContent>
+        <CardFooter className="text-sm text-white/40 flex justify-between">
+          <div>Total: {totalBallots} ballots</div>
+          <div>Showing: {paginatedBallots.length} results</div>
+        </CardFooter>
       </Card>
 
       {/* View Candidates Dialog */}

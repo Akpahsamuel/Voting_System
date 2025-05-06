@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { useNavigate } from "react-router-dom";
 import FeatureGuard from "../components/FeatureGuard";
 import { getNetwork } from "../utils/networkUtils";
+import { fetchBallotsOptimized } from "../utils/ballotUtils";
 
 // Define Candidate type
 export interface Candidate {
@@ -42,6 +43,14 @@ export const BallotPage: FC = () => {
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  
+  // Analytics state
+  const [analyticsData, setAnalyticsData] = useState({
+    totalVotes: 0,
+    activeBallotCount: 0,
+    delistedBallotCount: 0,
+    totalBallots: 0
+  });
 
   // Fetch dashboard data to get ballot IDs
   const { data: dashboardResponse } = useSuiClientQuery(
@@ -73,70 +82,41 @@ export const BallotPage: FC = () => {
 
       try {
         setIsLoading(true);
-        const fetchedBallots: Ballot[] = [];
+        
+        // Use the optimized ballot fetching utility
+        const fetchedBallots = await fetchBallotsOptimized(
+          new SuiClient({ url: `https://fullnode.${getNetwork()}.sui.io` }), 
+          dashboardId as string,
+          {
+            onProgress: () => {} // We don't need progress tracking in this view
+          }
+        );
+        
+        // Process fetched ballots for statistics
         let totalVotes = 0;
         let activeBallotCount = 0;
         let delistedBallotCount = 0;
-
-        // Get the current network
-        const network = getNetwork();
-        console.log("Current network for ballot page:", network);
-
-        // Create a SuiClient instance with the correct network
-        const suiClient = new SuiClient({ url: `https://fullnode.${network}.sui.io` });
-
-        // Batch fetch ballot objects instead of fetching them one by one
-        console.log(`Batch fetching ${ballotIds.length} objects`);
-        const batchSize = 50; // Optimal batch size to avoid request size limits
         
-        // Process ballots in batches
-        for (let i = 0; i < ballotIds.length; i += batchSize) {
-          const batchIds = ballotIds.slice(i, i + batchSize);
+        for (const ballot of fetchedBallots) {
+          totalVotes += ballot.totalVotes;
           
-          // Skip empty batches
-          if (batchIds.length === 0) continue;
-          
-          try {
-            // Fetch multiple objects in a single request
-            const batchResponse = await suiClient.multiGetObjects({
-              ids: batchIds,
-              options: {
-                showContent: true
-              }
-            });
-            
-            // Process each object in the batch response
-            for (const response of batchResponse) {
-              if (response.data && response.data.content?.dataType === "moveObject") {
-                // Check if this is actually a ballot, not a proposal
-                const type = response.data.content.type as string;
-                const isBallot = type && type.includes("::ballot::Ballot");
-                
-                if (!isBallot) {
-                  console.log("Skipping non-ballot object in ballot view:", response.data.objectId);
-                  continue;
-                }
-                
-                const ballot = parseBallot(response.data);
-                if (ballot) {
-                  fetchedBallots.push(ballot);
-                  totalVotes += ballot.totalVotes;
-                  
-                  if (ballot.status === 'Active') {
-                    activeBallotCount++;
-                  } else if (ballot.status === 'Delisted') {
-                    delistedBallotCount++;
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching batch of ballots:`, error);
+          if (ballot.status === 'Active') {
+            activeBallotCount++;
+          } else if (ballot.status === 'Delisted') {
+            delistedBallotCount++;
           }
         }
 
         console.log(`Successfully loaded ${fetchedBallots.length} ballots`);
         setBallots(fetchedBallots);
+        
+        // Update statistics
+        setAnalyticsData({
+          totalVotes,
+          activeBallotCount,
+          delistedBallotCount,
+          totalBallots: fetchedBallots.length
+        });
         
       } catch (error) {
         console.error("Error fetching ballots:", error);
@@ -145,12 +125,10 @@ export const BallotPage: FC = () => {
       }
     };
 
-    if (account && ballotIds.length > 0) {
+    if (dashboardId) {
       fetchBallots();
-    } else {
-      setIsLoading(false);
     }
-  }, [account, ballotIds]); // Remove analyticsData from dependencies
+  }, [dashboardId, ballotIds]);
 
   // Handler to navigate to individual ballot page
   const handleViewBallot = (ballot: Ballot) => {
