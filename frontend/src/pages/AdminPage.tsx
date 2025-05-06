@@ -22,7 +22,6 @@ import { SuiObjectData, SuiObjectResponse } from "@mysten/sui/client";
 import { ConnectButton } from '@mysten/dapp-kit';
 import { normalizeTimestamp, formatTimeLeft } from "../utils/formatUtils";
 import FeatureGuard from "../components/FeatureGuard";
-import Navbar from "../components/Navbar";
 import SystemStats from "../components/admin/SystemStats";
 
 // Simple wrapper component to replace missing AdminPageGuard
@@ -268,16 +267,16 @@ export const AdminPage: FC = () => {
   // Check if wallet is connected
   if (!account) {
     return (
-      <div className="container mx-auto px-4 py-16">
-        <Card className="bg-blue-900/30 border-blue-800/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-300">
-              <Wallet />
+      <div className="container mx-auto px-4 py-8 sm:py-16 bg-gray-950 min-h-screen flex items-center justify-center">
+        <Card className="bg-gray-900 border-blue-800 shadow-xl max-w-md w-full">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-white text-xl sm:text-2xl font-bold tracking-tight">
+              <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" />
               Connect Your Wallet
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-white/70 mb-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <p className="text-white mb-6 text-sm sm:text-base leading-relaxed">
               You need to connect your wallet to access the admin dashboard. Please connect your wallet that has an admin capability.
             </p>
             <div className="flex justify-center">
@@ -291,10 +290,11 @@ export const AdminPage: FC = () => {
 
   if (isLoadingAdminCap || isLoadingSuperAdminCap) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="mt-4 text-lg text-white">Loading admin access...</p>
+      <div className="flex h-screen items-center justify-center p-4 bg-gray-950">
+        <div className="flex flex-col items-center bg-gray-900 p-8 rounded-xl border border-gray-800 shadow-2xl">
+          <div className="h-10 w-10 sm:h-12 sm:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-400"></div>
+          <p className="mt-6 text-base sm:text-lg text-white font-medium">Loading admin access...</p>
+          <p className="mt-2 text-xs text-white/90">Please wait while we verify your admin privileges</p>
         </div>
       </div>
     );
@@ -302,18 +302,23 @@ export const AdminPage: FC = () => {
 
   if (!hasAdminCap && !hasSuperAdminCap) {
     return (
-      <div className="container mx-auto px-4 py-16">
-        <Card className="bg-red-900/30 border-red-800/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-300">
-              <AlertTriangle />
+      <div className="container mx-auto px-4 py-8 sm:py-16 bg-gray-950 min-h-screen flex items-center justify-center">
+        <Card className="bg-gray-900 border-red-800 shadow-xl max-w-md w-full">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-white text-xl sm:text-2xl font-bold tracking-tight">
+              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-400" />
               Access Denied
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-white/70">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
+            <p className="text-white text-sm sm:text-base leading-relaxed">
               You don't have admin privileges to access this page. Please contact the system administrator.
             </p>
+            <div className="mt-6">
+              <Button className="bg-gray-800 hover:bg-gray-700 text-white">
+                Return to Home
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -323,125 +328,143 @@ export const AdminPage: FC = () => {
   return (
     <FeatureGuard feature="dashboard">
       <AdminPageGuard>
-        <div className="min-h-screen bg-black bg-grid-pattern text-white">
-          <Navbar />
-          <div className="container mx-auto px-4 pt-24 pb-12">
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-8">
+        <div className="min-h-screen bg-gray-950 text-white">
+          <div className="container mx-auto px-3 sm:px-4 pt-20 sm:pt-24 pb-12 relative z-10">
+            <div className="absolute inset-0 bg-grid-pattern opacity-5 pointer-events-none z-0"></div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6 relative z-10">
               <div>
-                <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-                <p className="text-white/70">Manage proposals and system settings</p>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Admin Dashboard</h1>
+                <p className="text-white/80 text-sm sm:text-base mt-1 leading-relaxed">Manage proposals and system settings</p>
               </div>
             </div>
             
-            <Tabs defaultValue="dashboard" className="space-y-8">
-              <TabsList className="bg-gray-900/50 border border-gray-800 p-1 mb-8">
-                <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600">
-                  <LayoutDashboard className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                  <span className="sm:hidden">Stats</span>
-                </TabsTrigger>
-                <TabsTrigger value="proposals" className="data-[state=active]:bg-blue-600">
-                  <FileText className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Proposals</span>
-                  <span className="sm:hidden">Props</span>
-                </TabsTrigger>
-                <TabsTrigger value="users" className="data-[state=active]:bg-blue-600">
-                  <Users className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Users</span>
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="data-[state=active]:bg-blue-600">
-                  <Settings className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Settings</span>
-                  <span className="sm:hidden">Config</span>
-                </TabsTrigger>
-              </TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+              <div className="overflow-x-auto">
+                <TabsList className="bg-gray-900 border border-gray-800 p-2 mb-8 rounded-lg shadow-lg grid grid-cols-3 sm:flex gap-1 min-w-[300px]">
+                  <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <LayoutDashboard className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Dashboard</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">Dashboard</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="proposals" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <FileText className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Proposals</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">Proposals</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="create-proposal" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <FileText className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Create Proposal</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">New Prop</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="ballots" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <Vote className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Ballots</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">Ballots</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="create-ballot" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <Vote className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Create Ballot</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">New Ballot</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="voters" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <Users className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Voters</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">Voters</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="admin-management" className="data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-md py-2 transition-all duration-200 text-white">
+                    <ShieldCheck className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline font-medium">Admin Rights</span>
+                    <span className="md:hidden ml-1 text-xs font-medium">Rights</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
               
               <TabsContent value="dashboard" className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-white">Total Proposals</CardTitle>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                  <Card className="bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-2 sm:p-3 pb-0 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm md:text-base text-white font-semibold tracking-tight">Total Proposals</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{proposals.length}</div>
-                      <p className="text-xs text-muted-foreground">
+                    <CardContent className="p-2 sm:p-3 pt-0 md:p-6 md:pt-0">
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">{proposals.length}</div>
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium mt-1">
                         {proposals.filter(p => p.status === "Active").length} active proposals
                       </p>
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-white">Total Users</CardTitle>
+                  <Card className="bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-2 sm:p-3 pb-0 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm md:text-base text-white font-semibold tracking-tight">Total Users</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-2 sm:p-3 pt-0 md:p-6 md:pt-0">
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                         {Math.floor(Math.random() * 100) + 50}
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium mt-1">
                         {Math.floor(Math.random() * 20) + 5} new today
                       </p>
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-white">Total Votes</CardTitle>
+                  <Card className="bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-2 sm:p-3 pb-0 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm md:text-base text-white font-semibold tracking-tight">Total Votes</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-2 sm:p-3 pt-0 md:p-6 md:pt-0">
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                         {proposals.reduce((sum, p) => sum + p.votedYesCount + p.votedNoCount, 0)}
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium mt-1">
                         Across all proposals
                       </p>
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-white">Vote Success Rate</CardTitle>
+                  <Card className="bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-2 sm:p-3 pb-0 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm md:text-base text-white font-semibold tracking-tight">Vote Success Rate</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
+                    <CardContent className="p-2 sm:p-3 pt-0 md:p-6 md:pt-0">
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">
                         {calculateVotePercentage(true).toFixed(1)}%
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium mt-1">
                         Average yes vote percentage
                       </p>
                     </CardContent>
                   </Card>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <Card className="md:col-span-2 bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-xl font-medium">Recent Proposals</CardTitle>
-                      <CardDescription>Latest proposals in the system</CardDescription>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+                  <Card className="md:col-span-2 bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-3 sm:p-4 pb-1 sm:pb-2">
+                      <CardTitle className="text-sm sm:text-base md:text-xl font-medium tracking-tight text-white">Recent Proposals</CardTitle>
+                      <CardDescription className="text-white/70 text-[10px] sm:text-xs md:text-sm">Latest proposals in the system</CardDescription>
                     </CardHeader>
-                    <CardContent className="px-2 h-[320px] overflow-auto">
-                      <div className="space-y-2">
+                    <CardContent className="p-1 sm:px-2 h-[200px] sm:h-[250px] md:h-[320px] overflow-auto">
+                      <div className="space-y-1 sm:space-y-2">
                         {proposals.slice(0, 5).map((proposal, i) => (
-                          <div key={`proposal-${i}`} className="flex items-center p-2 hover:bg-white/5 rounded-md transition-colors">
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center 
-                              ${proposal.status === "Active" ? 'bg-blue-900/50 text-blue-400' : 
-                                'bg-red-900/50 text-red-400'}`
+                          <div key={`proposal-${i}`} className="flex items-center p-1 sm:p-2 hover:bg-gray-800 rounded-md transition-colors border border-gray-800 hover:border-gray-700">
+                            <div className={`h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 rounded-full flex items-center justify-center 
+                              ${proposal.status === "Active" ? 'bg-blue-800 text-blue-200' : 
+                                'bg-red-800 text-red-200'}`
                             }>
-                              {proposal.status === "Active" ? <FileText className="h-4 w-4" /> : 
-                                <Ban className="h-4 w-4" />}
+                              {proposal.status === "Active" ? <FileText className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4" /> : 
+                                <Ban className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4" />}
                             </div>
-                            <div className="ml-3 flex-1">
-                              <p className="text-sm font-medium text-white">
-                                {proposal.title.length > 30 ? proposal.title.substring(0, 30) + '...' : proposal.title}
+                            <div className="ml-1.5 sm:ml-2 md:ml-3 flex-1 overflow-hidden">
+                              <p className="text-[10px] sm:text-xs md:text-sm font-medium text-white truncate">
+                                {proposal.title}
                               </p>
-                              <p className="text-xs text-white/60">
+                              <p className="text-[8px] sm:text-[10px] md:text-xs text-white/90">
                                 {proposal.status === "Active" ? 
                                   `${proposal.votedYesCount + proposal.votedNoCount} votes` : 
                                   `Status: ${proposal.status}`}
                               </p>
                             </div>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 p-0 text-white hover:text-white hover:bg-gray-700">
+                              <MoreHorizontal className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4" />
                             </Button>
                           </div>
                         ))}
@@ -449,49 +472,49 @@ export const AdminPage: FC = () => {
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-black/30 border-white/20">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-xl font-medium">System Status</CardTitle>
-                      <CardDescription>Current system health</CardDescription>
+                  <Card className="bg-gray-900 border-gray-700 shadow-md hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-3 sm:p-4 pb-1 sm:pb-2">
+                      <CardTitle className="text-sm sm:text-base md:text-xl font-medium tracking-tight text-white">System Status</CardTitle>
+                      <CardDescription className="text-white/70 text-[10px] sm:text-xs md:text-sm">Current system health</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
+                    <CardContent className="p-2 sm:p-3 md:p-4">
+                      <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                        <div className="space-y-1 sm:space-y-2">
                           <div className="flex justify-between">
-                            <p className="text-sm text-white/70">Dashboard</p>
-                            <Badge variant="outline" className="bg-green-900/30 text-green-400 border-green-700/50">
+                            <p className="text-[10px] sm:text-xs md:text-sm text-white font-medium">Dashboard</p>
+                            <Badge variant="outline" className="text-[8px] sm:text-xs bg-green-800 text-green-200 border-green-700 py-0 px-1 sm:px-2">
                               Active
                             </Badge>
                           </div>
-                          <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
-                            <div className="bg-green-500 h-full w-full" />
+                          <div className="w-full h-1 sm:h-1.5 md:h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div className="bg-green-600 h-full w-full" />
                           </div>
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <div className="flex justify-between">
-                            <p className="text-sm text-white/70">Package ID</p>
-                            <Badge variant="outline" className="bg-green-900/30 text-green-400 border-green-700/50">
+                            <p className="text-[10px] sm:text-xs md:text-sm text-white font-medium">Package ID</p>
+                            <Badge variant="outline" className="text-[8px] sm:text-xs bg-green-800 text-green-200 border-green-700 py-0 px-1 sm:px-2">
                               Valid
                             </Badge>
                           </div>
-                          <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
-                            <div className="bg-green-500 h-full w-full" />
+                          <div className="w-full h-1 sm:h-1.5 md:h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div className="bg-green-600 h-full w-full" />
                           </div>
-                          <p className="text-xs text-white/50 break-all">
+                          <p className="text-[8px] sm:text-2xs md:text-xs text-white/80 break-all font-mono mt-1">
                             {packageId || "Not available"}
                           </p>
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <div className="flex justify-between">
-                            <p className="text-sm text-white/70">Network</p>
-                            <Badge variant="outline" className="bg-green-900/30 text-green-400 border-green-700/50">
+                            <p className="text-[10px] sm:text-xs md:text-sm text-white font-medium">Network</p>
+                            <Badge variant="outline" className="text-[8px] sm:text-xs bg-green-800 text-green-200 border-green-700 py-0 px-1 sm:px-2">
                               Connected
                             </Badge>
                           </div>
-                          <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
-                            <div className="bg-green-500 h-full w-full" />
+                          <div className="w-full h-1 sm:h-1.5 md:h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div className="bg-green-600 h-full w-full" />
                           </div>
                         </div>
                       </div>
@@ -502,20 +525,48 @@ export const AdminPage: FC = () => {
                 <SystemStats />
               </TabsContent>
               
-              <TabsContent value="proposals">
+              <TabsContent value="proposals" className="space-y-6">
                 <ProposalManagement adminCapId={adminCapId || ""} />
               </TabsContent>
               
-              <TabsContent value="users">
-                <div className="p-4 text-center text-muted-foreground">
-                  <p>User management functionality is under development</p>
-                </div>
+              <TabsContent value="create-proposal" className="space-y-6">
+                <CreateProposal />
               </TabsContent>
               
-              <TabsContent value="settings">
-                <div className="p-4 text-center text-muted-foreground">
-                  <p>Settings functionality is under development</p>
-                </div>
+              <TabsContent value="ballots" className="space-y-6">
+                <BallotManagement 
+                  adminCapId={adminCapId !== null ? adminCapId : undefined} 
+                  superAdminCapId={superAdminCapId !== null ? superAdminCapId : undefined} 
+                  hasSuperAdminCap={hasSuperAdminCap} 
+                />
+              </TabsContent>
+              
+              <TabsContent value="create-ballot" className="space-y-6">
+                <CreateBallot
+                  adminCapId={adminCapId !== null ? adminCapId : undefined}
+                  superAdminCapId={superAdminCapId !== null ? superAdminCapId : undefined}
+                  hasSuperAdminCap={hasSuperAdminCap}
+                />
+              </TabsContent>
+              
+              <TabsContent value="voters" className="space-y-6">
+                <VoterRegistry />
+              </TabsContent>
+              
+              <TabsContent value="admin-management" className="space-y-6">
+                <SuperAdminManagement superAdminCapId={superAdminCapId || ""} />
+              </TabsContent>
+              
+              <TabsContent value="settings" className="space-y-6">
+                <Card className="bg-gray-900 border-gray-700">
+                  <CardHeader>
+                    <CardTitle>System Settings</CardTitle>
+                    <CardDescription>Configure system parameters</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">Settings functionality is under development</p>
+                  </CardContent>
+                </Card>
               </TabsContent>
             </Tabs>
           </div>

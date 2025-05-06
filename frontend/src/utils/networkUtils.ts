@@ -25,8 +25,8 @@ export const setNetwork = (network: Network): void => {
 // Map of features that are available on each network
 const networkFeatures: Record<Network, string[]> = {
   mainnet: ['wallet', 'statistics'], // Limited features on mainnet
-  testnet: ['wallet', 'statistics', 'proposal', 'ballot'], // All features
-  devnet: ['wallet', 'statistics', 'proposal', 'ballot'] // All features
+  testnet: ['wallet', 'statistics', 'proposal', 'ballot', 'dashboard'], // All features
+  devnet: ['wallet', 'statistics', 'proposal', 'ballot', 'dashboard'] // All features
 };
 
 // Feature check function to determine if a feature is available on the current network
