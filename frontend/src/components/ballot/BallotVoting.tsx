@@ -21,6 +21,9 @@ import { motion } from "framer-motion";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 import { Ballot } from "../../pages/BallotPage";
+import { ConnectButton } from "@mysten/dapp-kit";
+import { SuiClient } from "@mysten/sui/client";
+import { getNetwork } from "../../utils/networkUtils";
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -72,6 +75,7 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
   const [currentPage, setCurrentPage] = useState(1);
   const [results, setResults] = useState<Record<string, any>>({});
   const [showResults, setShowResults] = useState<string | null>(null);
+  const [showConnectWalletDialog, setShowConnectWalletDialog] = useState(false);
 
   const account = useCurrentAccount();
   const { fetchBallotVotes } = useBallotVotes();
@@ -92,24 +96,166 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
     checkVotedBallots();
   }, [account, fetchBallotVotes, ballots]);
 
-  const handleViewResults = (ballot: Ballot) => {
-    setSelectedBallot(ballot);
-    setShowResultsDialog(true);
+  const handleViewResults = async (ballot: Ballot) => {
+    try {
+      console.log("Opening results dialog for ballot:", ballot.id, ballot);
+      
+      // Ensure the ballot data is valid before showing the dialog
+      if (!ballot || !ballot.candidates) {
+        console.error("Invalid ballot data:", ballot);
+        return;
+      }
+      
+      // Set loading state and open dialog immediately to provide visual feedback
+      setSelectedBallot(ballot);
+      setShowResultsDialog(true);
+      
+      // Try to fetch the latest data directly from blockchain 
+      try {
+        const client = new SuiClient({ url: `https://fullnode.${getNetwork()}.sui.io` });
+        const response = await client.getObject({
+          id: ballot.id,
+          options: { showContent: true }
+        });
+        
+        if (response?.data?.content?.dataType === "moveObject") {
+          console.log("Got fresh ballot data from blockchain");
+          const fields = response.data.content.fields as any;
+          
+          // Update total votes
+          const totalVotes = Number(fields.total_votes || 0);
+          
+          // Parse candidates to get fresh vote counts
+          let candidatesData = [];
+          if (fields.candidates) {
+            if (Array.isArray(fields.candidates)) {
+              candidatesData = fields.candidates;
+            } else if (fields.candidates.vec && Array.isArray(fields.candidates.vec)) {
+              candidatesData = fields.candidates.vec;
+            }
+          }
+          
+          // Update each candidate's vote count
+          const updatedCandidates = [...ballot.candidates];
+          for (const candidate of candidatesData) {
+            if (!candidate) continue;
+            
+            const candidateFields = candidate.fields || candidate;
+            const id = Number(candidateFields.id || 0);
+            const votes = Number(candidateFields.vote_count || 0);
+            
+            // Find and update corresponding candidate
+            const index = updatedCandidates.findIndex(c => c.id === id);
+            if (index >= 0) {
+              updatedCandidates[index] = {
+                ...updatedCandidates[index],
+                votes
+              };
+            }
+          }
+          
+          // Create updated ballot with fresh data
+          const updatedBallot = {
+            ...ballot,
+            totalVotes,
+            candidates: updatedCandidates
+          };
+          
+          // Update selected ballot with fresh data
+          setSelectedBallot(updatedBallot);
+          console.log("Updated ballot with fresh data:", updatedBallot);
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh ballot data:", err);
+        // Continue with existing data
+      }
+      
+      // Log vote counts for debugging
+      if (ballot.candidates.length > 0) {
+        console.log("Candidate vote counts:");
+        ballot.candidates.forEach(c => {
+          console.log(`- ${c.name}: ${c.votes} votes`);
+        });
+        console.log(`Total votes: ${ballot.totalVotes}`);
+      }
+      
+      // Force a re-render of the chart after dialog opens
+      setTimeout(() => {
+        const chartData = getChartData(selectedBallot || ballot);
+        console.log("Chart data prepared:", chartData);
+      }, 100);
+    } catch (error) {
+      console.error("Error opening results dialog:", error);
+    }
   };
 
   const getChartData = (ballot: Ballot) => {
-    const labels = ballot.candidates.map(c => c.name);
-    const data = ballot.candidates.map(c => c.votes);
-    const { backgroundColor } = generateColors(ballot.candidates.length);
-    
-    return {
-      labels,
-      datasets: [{
-        data,
-        backgroundColor,
-        borderWidth: 0
-      }]
-    };
+    try {
+      // Ensure ballot has valid candidates
+      if (!ballot?.candidates || !Array.isArray(ballot.candidates) || ballot.candidates.length === 0) {
+        console.warn("No valid candidates found for chart data:", ballot);
+        return {
+          labels: ["No Data"],
+          datasets: [{
+            data: [1],
+            backgroundColor: ["#64748b"],
+            borderWidth: 0
+          }]
+        };
+      }
+      
+      // Filter out candidates with no votes for better visualization if there's at least one with votes
+      const candidatesWithVotes = ballot.candidates.filter(c => c.votes > 0);
+      
+      // If all candidates have zero votes but the total is greater than zero, use all candidates
+      // This handles possible data inconsistency
+      const candidatesToUse = 
+        (candidatesWithVotes.length === 0 && ballot.totalVotes > 0) 
+          ? ballot.candidates 
+          : (candidatesWithVotes.length > 0 ? candidatesWithVotes : ballot.candidates);
+      
+      console.log("Using candidates for chart:", candidatesToUse.map(c => `${c.name}: ${c.votes}`));
+      
+      const labels = candidatesToUse.map(c => c.name || "Unnamed Candidate");
+      const data = candidatesToUse.map(c => c.votes || 0);
+      
+      // Handle case where we have totalVotes but individual votes are zero
+      if (data.every(v => v === 0) && ballot.totalVotes > 0) {
+        console.log("All candidates have zero votes but total is positive. Adding placeholder data.");
+        return {
+          labels: ["Unallocated Votes", ...labels],
+          datasets: [{
+            data: [ballot.totalVotes, ...data],
+            backgroundColor: ["#94a3b8", ...generateColors(candidatesToUse.length).backgroundColor],
+            borderWidth: 0
+          }]
+        };
+      }
+      
+      const { backgroundColor } = generateColors(candidatesToUse.length);
+      
+      console.log("Chart data generated:", { labels, data, totalVotes: ballot.totalVotes });
+      
+      return {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor,
+          borderWidth: 0
+        }]
+      };
+    } catch (error) {
+      console.error("Error generating chart data:", error);
+      // Return fallback data
+      return {
+        labels: ["Error"],
+        datasets: [{
+          data: [1],
+          backgroundColor: ["#ef4444"],
+          borderWidth: 0
+        }]
+      };
+    }
   };
 
   const filteredBallots = ballots.filter(ballot => {
@@ -139,6 +285,15 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // New function to handle vote button click
+  const handleVoteClick = (ballot: Ballot) => {
+    if (!account) {
+      setShowConnectWalletDialog(true);
+    } else if (onViewBallot) {
+      onViewBallot(ballot);
+    }
   };
 
   if (isLoading) {
@@ -257,210 +412,223 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
         </div>
       ) : (
         <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {paginatedBallots.map((ballot) => (
-            <motion.div
-              key={ballot.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              className="h-full"
-            >
-              <Card className={`h-full flex flex-col overflow-hidden border-2 ${ballot.status === 'Active' ? 'border-blue-500/20 shadow-md shadow-blue-500/10' : ballot.status === 'Expired' ? 'border-amber-500/20' : 'border-red-500/20'} ${ballot.status !== 'Active' ? 'opacity-80 bg-black/40' : 'bg-gradient-to-br from-slate-900 to-slate-800'}`}>
-                <div className={`absolute top-0 left-0 w-full h-1 ${ballot.status === 'Active' ? 'bg-blue-500' : ballot.status === 'Expired' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-                
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">
-                      {ballot.title}
-                    </CardTitle>
-                    <div className="flex flex-col gap-1 items-end">
-                      {ballot.isPrivate && (
-                        <Badge variant="outline" className="bg-blue-900/40 text-blue-300 border-blue-700/50 py-1">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Private
-                        </Badge>
-                      )}
-                      {ballot.status !== 'Active' && (
-                        <Badge variant={ballot.status === 'Delisted' ? "destructive" : "secondary"} className={`${ballot.status === 'Expired' ? 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50' : 'bg-red-900/50 text-red-300 hover:bg-red-800/50'} py-1`}>
-                          {ballot.status === 'Expired' ? <Clock className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
-                          {ballot.status}
-                        </Badge>
-                      )}
-                      {ballot.status === 'Active' && (
-                        <Badge variant="outline" className="bg-green-900/40 text-green-300 border-green-700/50 py-1">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription className="mt-2 text-slate-300">
-                    {ballot.description.length > 100 
-                      ? `${ballot.description.substring(0, 100)}...` 
-                      : ballot.description}
-                  </CardDescription>
-                </CardHeader>
-                
-                <CardContent className="flex-grow pb-2">
-                  {/* Time left with progress bar */}
-                  <div className="mb-4">
-                    {ballot.status === 'Active' && isValidTimestamp(ballot.expiration) && (
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="flex items-center text-blue-300">
-                            <Clock className="h-4 w-4 mr-2" />
-                            Time left
-                          </span>
-                          <span className="font-medium text-white">
-                            {formatTimeLeft(normalizeTimestamp(ballot.expiration) || ballot.expiration)}
-                          </span>
-                        </div>
-                        
-                        {/* Time progress bar */}
-                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                          {(() => {
-                            const now = Date.now();
-                            const expiry = normalizeTimestamp(ballot.expiration) || ballot.expiration;
-                            const totalDuration = 7 * 24 * 60 * 60 * 1000; // Assume 7 days total duration
-                            const elapsed = expiry - now;
-                            const percent = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
-                            
-                            return (
-                              <div 
-                                className="h-full bg-gradient-to-r from-blue-500 to-blue-300" 
-                                style={{ width: `${percent}%` }}
-                              />
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {(ballot.status !== 'Active' || !isValidTimestamp(ballot.expiration)) && (
-                      <div className="flex items-center text-amber-300">
-                        <Clock className="h-4 w-4 mr-2" />
-                        <span className="text-sm">
-                          {ballot.status === 'Active' 
-                            ? "Invalid expiration date"
-                            : `Ended: ${formatDate(ballot.expiration)}`
-                          }
-                        </span>
-                      </div>
-                    )}
-                  </div>
+          {paginatedBallots.map((ballot) => {
+            // Check if ballot is expired
+            const isExpired = ballot.status === 'Expired' || 
+              (ballot.status === 'Active' && ballot.expiration < Date.now());
+            
+            // Check if user has already voted
+            const userVoted = hasVoted[ballot.id];
+            
+            // For UI purposes - always allow viewing results, but show Vote Now for active ballots user hasn't voted on
+            const showVoteButton = ballot.status === 'Active' && !userVoted;
+            
+            return (
+              <motion.div
+                key={ballot.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                className="h-full"
+              >
+                <Card className={`h-full flex flex-col overflow-hidden border-2 ${ballot.status === 'Active' ? 'border-blue-500/20 shadow-md shadow-blue-500/10' : ballot.status === 'Expired' ? 'border-amber-500/20' : 'border-red-500/20'} ${ballot.status !== 'Active' ? 'opacity-80 bg-black/40' : 'bg-gradient-to-br from-slate-900 to-slate-800'}`}>
+                  <div className={`absolute top-0 left-0 w-full h-1 ${ballot.status === 'Active' ? 'bg-blue-500' : ballot.status === 'Expired' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
                   
-                  {/* Candidates and votes info */}
-                  <div className="space-y-3 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-300 flex items-center">
-                        <Users className="h-4 w-4 mr-2 text-blue-400" />
-                        Candidates
-                      </span>
-                      <span className="font-medium text-white bg-blue-900/50 px-2 py-0.5 rounded-full text-xs">
-                        {ballot.candidates.length}
-                      </span>
-                    </div>
-                    
-                    {/* Preview of top candidates */}
-                    {ballot.candidates.length > 0 && (
-                      <div className="space-y-2">
-                        {ballot.candidates.slice(0, 2).map((candidate, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="text-slate-300 truncate max-w-[180px]">{candidate.name}</span>
-                            {ballot.status !== 'Active' && (
-                              <span className="font-medium text-white bg-slate-700/70 px-2 py-0.5 rounded-full text-xs">
-                                {candidate.votes} votes
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                        {ballot.candidates.length > 2 && (
-                          <div className="text-xs text-slate-400 text-center">
-                            +{ballot.candidates.length - 2} more candidates
-                          </div>
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">
+                        {ballot.title}
+                      </CardTitle>
+                      <div className="flex flex-col gap-1 items-end">
+                        {ballot.isPrivate && (
+                          <Badge variant="outline" className="bg-blue-900/40 text-blue-300 border-blue-700/50 py-1">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Private
+                          </Badge>
+                        )}
+                        {ballot.status !== 'Active' && (
+                          <Badge variant={ballot.status === 'Delisted' ? "destructive" : "secondary"} className={`${ballot.status === 'Expired' ? 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50' : 'bg-red-900/50 text-red-300 hover:bg-red-800/50'} py-1`}>
+                            {ballot.status === 'Expired' ? <Clock className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+                            {ballot.status}
+                          </Badge>
+                        )}
+                        {ballot.status === 'Active' && (
+                          <Badge variant="outline" className="bg-green-900/40 text-green-300 border-green-700/50 py-1">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
                         )}
                       </div>
-                    )}
+                    </div>
+                    <CardDescription className="mt-2 text-slate-300">
+                      {ballot.description.length > 100 
+                        ? `${ballot.description.substring(0, 100)}...` 
+                        : ballot.description}
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="flex-grow pb-2">
+                    {/* Time left with progress bar */}
+                    <div className="mb-4">
+                      {ballot.status === 'Active' && isValidTimestamp(ballot.expiration) && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="flex items-center text-blue-300">
+                              <Clock className="h-4 w-4 mr-2" />
+                              Time left
+                            </span>
+                            <span className="font-medium text-white">
+                              {formatTimeLeft(normalizeTimestamp(ballot.expiration) || ballot.expiration)}
+                            </span>
+                          </div>
+                          
+                          {/* Time progress bar */}
+                          <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                            {(() => {
+                              const now = Date.now();
+                              const expiry = normalizeTimestamp(ballot.expiration) || ballot.expiration;
+                              const totalDuration = 7 * 24 * 60 * 60 * 1000; // Assume 7 days total duration
+                              const elapsed = expiry - now;
+                              const percent = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
+                              
+                              return (
+                                <div 
+                                  className="h-full bg-gradient-to-r from-blue-500 to-blue-300" 
+                                  style={{ width: `${percent}%` }}
+                                />
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {(ballot.status !== 'Active' || !isValidTimestamp(ballot.expiration)) && (
+                        <div className="flex items-center text-amber-300">
+                          <Clock className="h-4 w-4 mr-2" />
+                          <span className="text-sm">
+                            {ballot.status === 'Active' 
+                              ? "Invalid expiration date"
+                              : `Ended: ${formatDate(ballot.expiration)}`
+                            }
+                          </span>
+                        </div>
+                      )}
+                    </div>
                     
-                    {ballot.status !== 'Active' && (
-                      <div className="flex justify-between items-center pt-1 border-t border-slate-700/50">
+                    {/* Candidates and votes info */}
+                    <div className="space-y-3 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                      <div className="flex justify-between items-center">
                         <span className="text-sm text-slate-300 flex items-center">
-                          <Vote className="h-4 w-4 mr-2 text-purple-400" />
-                          Total votes
+                          <Users className="h-4 w-4 mr-2 text-blue-400" />
+                          Candidates
                         </span>
-                        <span className="font-medium text-white bg-purple-900/50 px-2 py-0.5 rounded-full text-xs">
-                          {ballot.totalVotes}
+                        <span className="font-medium text-white bg-blue-900/50 px-2 py-0.5 rounded-full text-xs">
+                          {ballot.candidates.length}
                         </span>
                       </div>
-                    )}
-                  </div>
+                      
+                      {/* Preview of top candidates */}
+                      {ballot.candidates.length > 0 && (
+                        <div className="space-y-2">
+                          {ballot.candidates.slice(0, 2).map((candidate, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm">
+                              <span className="text-slate-300 truncate max-w-[180px]">{candidate.name}</span>
+                              {ballot.status !== 'Active' && (
+                                <span className="font-medium text-white bg-slate-700/70 px-2 py-0.5 rounded-full text-xs">
+                                  {candidate.votes} votes
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                          {ballot.candidates.length > 2 && (
+                            <div className="text-xs text-slate-400 text-center">
+                              +{ballot.candidates.length - 2} more candidates
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {ballot.status !== 'Active' && (
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-700/50">
+                          <span className="text-sm text-slate-300 flex items-center">
+                            <Vote className="h-4 w-4 mr-2 text-purple-400" />
+                            Total votes
+                          </span>
+                          <span className="font-medium text-white bg-purple-900/50 px-2 py-0.5 rounded-full text-xs">
+                            {ballot.totalVotes}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Separator className="my-4 bg-slate-700/50" />
+                    
+                    {/* Voting status */}
+                    <div className={`text-sm p-2 rounded-lg ${hasVoted[ballot.id] ? 'bg-green-900/30 text-green-300 border border-green-800/50' : ballot.status === 'Active' ? 'bg-blue-900/30 text-blue-300 border border-blue-800/50' : 'bg-slate-800/50 text-slate-300 border border-slate-700/50'}`}>
+                      {hasVoted[ballot.id] ? (
+                        <div className="flex items-center">
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          You have voted on this ballot
+                        </div>
+                      ) : ballot.status === 'Active' ? (
+                        <div className="flex items-center">
+                          <Vote className="h-4 w-4 mr-2" />
+                          Cast your vote for one of the candidates
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Voting is no longer available
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
                   
-                  <Separator className="my-4 bg-slate-700/50" />
-                  
-                  {/* Voting status */}
-                  <div className={`text-sm p-2 rounded-lg ${hasVoted[ballot.id] ? 'bg-green-900/30 text-green-300 border border-green-800/50' : ballot.status === 'Active' ? 'bg-blue-900/30 text-blue-300 border border-blue-800/50' : 'bg-slate-800/50 text-slate-300 border border-slate-700/50'}`}>
-                    {hasVoted[ballot.id] ? (
-                      <div className="flex items-center">
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        You have voted on this ballot
-                      </div>
-                    ) : ballot.status === 'Active' ? (
-                      <div className="flex items-center">
-                        <Vote className="h-4 w-4 mr-2" />
-                        Cast your vote for one of the candidates
-                      </div>
-                    ) : (
-                      <div className="flex items-center">
-                        <AlertCircle className="h-4 w-4 mr-2" />
-                        Voting is no longer available
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-                
-                <CardFooter className="flex flex-col gap-2 pt-0">
-                  <div className="flex justify-between w-full">
+                  <CardFooter className="flex flex-col gap-2 pt-0">
+                    <div className="flex justify-between w-full">
+                      {/* Always show View Results button */}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="border-slate-700 hover:bg-slate-800 hover:text-blue-400 transition-colors"
+                        onClick={() => handleViewResults(ballot)}
+                      >
+                        <PieChart className="h-4 w-4 mr-1" />
+                        View Results
+                      </Button>
+                      
+                      {/* Only show Vote button for active ballots where user hasn't voted */}
+                      {showVoteButton && (
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="bg-gradient-to-r from-blue-600 to-blue-700"
+                          onClick={() => handleVoteClick(ballot)}
+                          disabled={!account}
+                        >
+                          <Vote className="h-4 w-4 mr-2" />
+                          {account ? "Vote Now" : "Connect to Vote"}
+                        </Button>
+                      )}
+                    </div>
                     <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="border-slate-700 hover:bg-slate-800 hover:text-blue-400 transition-colors"
-                      onClick={() => handleViewResults(ballot)}
-                    >
-                      <PieChart className="h-4 w-4 mr-1" />
-                      View Results
-                    </Button>
-                    <Button 
-                      size="sm"
-                      className={`${hasVoted[ballot.id] || ballot.status !== 'Active' ? 'bg-slate-700 hover:bg-slate-600' : 'bg-blue-600 hover:bg-blue-500'} transition-colors`}
-                      disabled={hasVoted[ballot.id] || ballot.status !== 'Active'}
-                      onClick={() => {
-                        if (onViewBallot) {
-                          console.log("Navigating to ballot:", ballot.id);
-                          onViewBallot(ballot);
-                        }
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full h-8 gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30 border border-slate-800"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openInExplorer(getObjectUrl(ballot.id));
                       }}
                     >
-                      {hasVoted[ballot.id] ? "Voted" : "Vote Now"}
-                      <ChevronRight className="h-4 w-4 ml-1" />
+                      <ExternalLink size={14} />
+                      <span>View on Sui Explorer</span>
                     </Button>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="w-full h-8 gap-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-950/30 border border-slate-800"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openInExplorer(getObjectUrl(ballot.id));
-                    }}
-                  >
-                    <ExternalLink size={14} />
-                    <span>View on Sui Explorer</span>
-                  </Button>
-                </CardFooter>
-              </Card>
-            </motion.div>
-          ))}
+                  </CardFooter>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
       
@@ -547,10 +715,14 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
               {selectedBallot && selectedBallot.candidates.length > 0 ? (
                 <div className="w-full h-64">
                   <Doughnut 
+                    key={`chart-${selectedBallot.id}-${selectedBallot.totalVotes}`}
                     data={getChartData(selectedBallot)} 
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
+                      animation: {
+                        duration: 500
+                      },
                       plugins: {
                         legend: {
                           position: 'bottom',
@@ -559,6 +731,18 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                             padding: 15,
                             font: {
                               size: 11
+                            }
+                          }
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: (context) => {
+                              const label = context.label || '';
+                              const value = context.raw || 0;
+                              const dataset = context.dataset;
+                              const total = dataset.data.reduce((acc: number, data: number) => acc + data, 0);
+                              const percentage = total === 0 ? 0 : Math.round((value as number / total) * 100);
+                              return `${label}: ${value} votes (${percentage}%)`;
                             }
                           }
                         }
@@ -667,6 +851,26 @@ const BallotVoting = ({ ballots, isLoading, onViewBallot }: BallotVotingProps) =
                 Vote Now
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add a connect wallet dialog */}
+      <Dialog open={showConnectWalletDialog} onOpenChange={setShowConnectWalletDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect Your Wallet</DialogTitle>
+            <DialogDescription>
+              You need to connect your wallet to vote on ballots.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-6">
+            <ConnectButton className="w-full" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConnectWalletDialog(false)}>
+              Cancel
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
