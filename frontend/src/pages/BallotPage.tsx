@@ -10,6 +10,8 @@ import BallotVoting from "../components/ballot/BallotVoting";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useNavigate } from "react-router-dom";
+import FeatureGuard from "../components/FeatureGuard";
+import { getNetwork } from "../utils/networkUtils";
 
 // Define Candidate type
 export interface Candidate {
@@ -40,8 +42,6 @@ export const BallotPage: FC = () => {
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-
-  // Removed analytics data state
 
   // Fetch dashboard data to get ballot IDs
   const { data: dashboardResponse } = useSuiClientQuery(
@@ -78,8 +78,12 @@ export const BallotPage: FC = () => {
         let activeBallotCount = 0;
         let delistedBallotCount = 0;
 
-        // Create a SuiClient instance
-        const suiClient = new SuiClient({ url: "https://fullnode.devnet.sui.io" });
+        // Get the current network
+        const network = getNetwork();
+        console.log("Current network for ballot page:", network);
+
+        // Create a SuiClient instance with the correct network
+        const suiClient = new SuiClient({ url: `https://fullnode.${network}.sui.io` });
 
         // Batch fetch ballot objects instead of fetching them one by one
         console.log(`Batch fetching ${ballotIds.length} objects`);
@@ -173,34 +177,35 @@ export const BallotPage: FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black bg-grid-pattern text-white">
-      <Navbar />
-      <div className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-          <div>
+    <FeatureGuard feature="ballot">
+      <div className="min-h-screen bg-black bg-grid-pattern text-white">
+        <Navbar />
+        <div className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
+          <div className="mb-8">
             <h1 className="text-3xl font-bold">Ballot System</h1>
             <p className="text-muted-foreground">View and vote on ballots</p>
           </div>
+
+          <Tabs defaultValue="voting" className="w-full">
+            <TabsList className="grid grid-cols-1 mb-8">
+              <TabsTrigger value="voting" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Voting</span>
+                <span className="sm:hidden">Ballots</span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="voting" className="p-0">
+              <BallotVoting 
+                ballots={ballots} 
+                isLoading={isLoading} 
+                onViewBallot={handleViewBallot} 
+              />
+            </TabsContent>
+          </Tabs>
         </div>
-
-      <Tabs defaultValue="voting" className="w-full">
-        <TabsList className="grid grid-cols-1 mb-8">
-          <TabsTrigger value="voting" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden md:inline">Voting</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="voting" className="p-0">
-          <BallotVoting 
-            ballots={ballots} 
-            isLoading={isLoading} 
-            onViewBallot={handleViewBallot} 
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
-    </div>
+      </div>
+    </FeatureGuard>
   );
 };
 

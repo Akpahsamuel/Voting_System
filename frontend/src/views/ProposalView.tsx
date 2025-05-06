@@ -8,6 +8,8 @@ import UserStatistics from "../components/user/UserStatistics";
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import FeatureGuard from "../components/FeatureGuard";
+import { getNetwork } from "../utils/networkUtils";
 
 const ProposalView = () => {
   const dashboardId = useNetworkVariable("dashboardId" as any);
@@ -36,10 +38,18 @@ const ProposalView = () => {
         const checkObjects = async () => {
           const validProposalIds: string[] = [];
           
+          // Get the current network
+          const network = getNetwork();
+          console.log("Current network for proposal filtering:", network);
+          
           // Use Promise.all to check all objects in parallel
           await Promise.all(proposalIds.map(async (id) => {
             try {
-              const response = await fetch(`https://fullnode.devnet.sui.io/`, {
+              // Use the appropriate fullnode URL based on network
+              const fullnodeUrl = `https://fullnode.${network}.sui.io/`;
+              console.log("Using fullnode URL:", fullnodeUrl);
+              
+              const response = await fetch(fullnodeUrl, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -85,41 +95,43 @@ const ProposalView = () => {
   const proposalIds = filteredProposalIds;
 
   return (
-    <div className="min-h-screen bg-black bg-grid-pattern text-white">
-      <Navbar />
-      <div className="container mx-auto px-4 pt-24 pb-12">
-        <h1 className="text-3xl font-bold mb-6">Governance Proposals</h1>
-        
-        <Card className="bg-white/10 backdrop-blur-md border-white/20 mb-8">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-white text-xl">Platform Statistics</CardTitle>
-            <button 
-              onClick={() => setShowStats(!showStats)}
-              className="text-blue-400 hover:text-blue-300 hover:underline text-sm transition-colors"
-            >
-              {showStats ? 'Hide Statistics' : 'Show Statistics'}
-            </button>
-          </CardHeader>
+    <FeatureGuard feature="proposal">
+      <div className="min-h-screen bg-black bg-grid-pattern text-white">
+        <Navbar />
+        <div className="container mx-auto px-4 pt-24 pb-12">
+          <h1 className="text-3xl font-bold mb-6">Governance Proposals</h1>
           
-          {showStats && (
-            <CardContent>
-              <UserStatistics proposalIds={proposalIds} userVoteNfts={voteNfts} />
-            </CardContent>
-          )}
-        </Card>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {proposalIds.map(id =>
-            <ProposalItem
-              key={id}
-              id={id}
-              onVoteTxSuccess={() => refetchNfts()}
-              voteNft={voteNfts.find((nft) => nft.proposalId === id)}
-            />
-          )}
+          <Card className="bg-white/10 backdrop-blur-md border-white/20 mb-8">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-white text-xl">Platform Statistics</CardTitle>
+              <button 
+                onClick={() => setShowStats(!showStats)}
+                className="text-blue-400 hover:text-blue-300 hover:underline text-sm transition-colors"
+              >
+                {showStats ? 'Hide Statistics' : 'Show Statistics'}
+              </button>
+            </CardHeader>
+            
+            {showStats && (
+              <CardContent>
+                <UserStatistics proposalIds={proposalIds} userVoteNfts={voteNfts} />
+              </CardContent>
+            )}
+          </Card>
+          
+          <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {proposalIds.map(id =>
+              <ProposalItem
+                key={id}
+                id={id}
+                onVoteTxSuccess={() => refetchNfts()}
+                voteNft={voteNfts.find((nft) => nft.proposalId === id)}
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </FeatureGuard>
   )
 };
 

@@ -6,8 +6,8 @@ import {
   RouterProvider, 
   createBrowserRouter
 } from "react-router-dom";
-import { useEffect } from "react";
-import { useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { useEffect, useState } from "react";
+import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ProposalView from "./views/ProposalView";
@@ -21,6 +21,7 @@ import BallotsPage from "./pages/BallotsPage";
 import CreateBallotPage from "./pages/create-ballot";
 import ManageBallotPage from "./pages/ManageBallotPage";
 import BallotDetailPage from "./pages/ballot";
+import MainnetNotice from "./components/MainnetNotice";
 
 const queryClient = new QueryClient();
 
@@ -106,11 +107,44 @@ const router = createBrowserRouter([
 ]);
 
 const App = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const suiClient = useSuiClient();
+
+  useEffect(() => {
+    // Initialize connection to the network
+    const initializeNetwork = async () => {
+      try {
+        // Try a basic call to check connectivity
+        await suiClient.getChainIdentifier();
+        setIsLoading(false);
+      } catch (e) {
+        console.error("Failed to connect to network:", e);
+        setIsLoading(false);
+      }
+    };
+
+    initializeNetwork();
+  }, [suiClient]);
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-b from-gray-900 to-black">
+        <div className="flex flex-col items-center">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center animate-pulse">
+            <div className="w-8 h-8 bg-white rounded-full" />
+          </div>
+          <p className="mt-5 text-white text-lg font-medium">Connecting to network...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <TransactionStateResetter>
           <RouterProvider router={router} />
+          <MainnetNotice />
           <Toaster />
           <Sonner />
         </TransactionStateResetter>
