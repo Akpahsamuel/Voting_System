@@ -3,7 +3,7 @@ import { useSuiClientQuery } from "@mysten/dapp-kit";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../config/networkConfig";
 import { Badge } from "../components/ui/badge";
-import { FileText } from "lucide-react";
+import { FileText, Info } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { SuiObjectData, SuiClient } from "@mysten/sui/client";
 import BallotVoting from "../components/ballot/BallotVoting";
@@ -136,24 +136,6 @@ export const BallotPage: FC = () => {
     navigate(`/ballot/${ballot.id}`);
   };
 
-  if (!account) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Connect Your Wallet</CardTitle>
-            <CardDescription className="text-center">
-              Please connect your wallet to access the ballot system
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center">
-            {/* ConnectButton is already in the Navbar */}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <FeatureGuard feature="ballot">
       <div className="min-h-screen bg-black bg-grid-pattern text-white">
@@ -162,6 +144,14 @@ export const BallotPage: FC = () => {
           <div className="mb-8">
             <h1 className="text-3xl font-bold">Ballot System</h1>
             <p className="text-muted-foreground">View and vote on ballots</p>
+            {!account && (
+              <div className="mt-4 p-4 bg-blue-900/30 border border-blue-700/30 rounded-lg">
+                <p className="text-blue-200 flex items-center">
+                  <Info className="h-4 w-4 mr-2" />
+                  Connect your wallet to vote on ballots
+                </p>
+              </div>
+            )}
           </div>
 
           <Tabs defaultValue="voting" className="w-full">

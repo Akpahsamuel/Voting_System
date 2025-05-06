@@ -70,20 +70,21 @@ const BallotDetailPage = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const [showVoteDialog, setShowVoteDialog] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
   
   // Add additional state for debugging
   const [blockchainTime, setBlockchainTime] = useState<number | null>(null);
   const [isCheckingExpiration, setIsCheckingExpiration] = useState(false);
 
-  // Fetch ballot data
+  // Fetch ballot data when component loads or when account changes
   useEffect(() => {
-    if (!ballotId) {
-      setError("Ballot ID is required");
-      setLoading(false);
-      return;
-    }
-
     const fetchBallot = async () => {
+      if (!ballotId) {
+        setError("Ballot ID is required");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         console.log("Fetching ballot with ID:", ballotId);
@@ -258,12 +259,7 @@ const BallotDetailPage = () => {
       }
     };
 
-    if (currentAccount) {
-      fetchBallot();
-    } else {
-      setLoading(false);
-      setError("Please connect your wallet to view this ballot");
-    }
+    fetchBallot();
   }, [ballotId, currentAccount, suiClient]);
 
   // Calculate time left if ballot has expiration
@@ -432,68 +428,23 @@ const BallotDetailPage = () => {
   }, [selectedCandidate]);
 
   const handleCandidateSelect = (candidate: Candidate) => {
-    console.log("Selecting candidate:", candidate.id, candidate.name);
-    if (selectedCandidate && selectedCandidate.id === candidate.id) {
-      setSelectedCandidate(null);
-    } else {
-      setSelectedCandidate({...candidate});
+    // Only allow selection if user is connected and ballot is active
+    if (ballot?.status === 'Active') {
+      setSelectedCandidate(candidate);
     }
   };
 
   const handleVoteClick = () => {
-    console.log("Vote button clicked, selectedCandidate:", selectedCandidate);
-    console.log("Current wallet state:", { 
-      account: currentAccount,
-      address: currentAccount?.address,
-      hasWallet: !!currentAccount
-    });
-    console.log("Current ballot state:", { 
-      ballotId: ballot?.id,
-      status: ballot?.status,
-      expiration: ballot?.expiration,
-      hasVoted: ballot?.hasVoted,
-      currentTime: Date.now()
-    });
-    
-    // Check if ballot is expired based on current time
-    const now = Date.now();
-    const isExpired = ballot?.expiration && ballot.expiration <= now;
-    
-    if (isExpired || ballot?.status === 'Expired') {
-      toast.error("This ballot has expired and is no longer accepting votes");
-      return;
-    }
-    
-    if (ballot?.hasVoted) {
-      toast.error("You have already voted on this ballot");
-      return;
-    }
-    
-    if (!selectedCandidate) {
-      console.error("No candidate selected");
-      toast.error("Please select a candidate first");
-      return;
-    }
-    
-    // Check if wallet is connected
     if (!currentAccount) {
-      console.error("Wallet not connected");
-      toast.error("Please connect your wallet to vote");
+      setShowConnectDialog(true);
       return;
     }
     
-    // If everything is ok, show the vote confirmation dialog
-    console.log("Opening vote dialog for candidate:", selectedCandidate);
-    setShowVoteDialog(true);
-    
-    // Verify the dialog is actually showing
-    setTimeout(() => {
-      if (!showVoteDialog) {
-        console.warn("Vote dialog may not be showing properly");
-        // Try to force it open again
-        setShowVoteDialog(true);
-      }
-    }, 500);
+    if (selectedCandidate) {
+      setShowVoteDialog(true);
+    } else {
+      toast.warning("Please select a candidate first");
+    }
   };
 
   const submitVote = async () => {
@@ -800,7 +751,7 @@ const BallotDetailPage = () => {
 
   // Add a function to refetch the ballot
   const refetchBallot = async () => {
-    if (!ballotId || !currentAccount) return;
+    if (!ballotId) return;
     setLoading(true);
     setError(null);
     try {
@@ -911,23 +862,7 @@ const BallotDetailPage = () => {
     }
   }, [ballotId, currentAccount]);
 
-  if (!currentAccount) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Ballot Details</h1>
-          <ConnectButton />
-        </div>
-        
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Please connect your wallet to view this ballot.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Note: We've removed the wallet connection requirement to allow users to view ballots without connecting
 
   return (
     <FeatureGuard feature="ballot">
@@ -947,6 +882,20 @@ const BallotDetailPage = () => {
               <ConnectButton />
             </div>
           </div>
+          
+          {/* Info for non-connected wallet users */}
+          {!currentAccount && (
+            <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4 text-blue-200 flex items-start space-x-3 mb-4">
+              <Info className="h-5 w-5 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-medium mb-1">Connect wallet to vote</h3>
+                <p className="text-blue-300/90 text-sm mb-3">
+                  You can browse ballots without connecting a wallet, but you'll need to connect to vote.
+                </p>
+                <ConnectButton />
+              </div>
+            </div>
+          )}
           
           {loading ? (
             <div className="flex justify-center items-center py-20">
@@ -1044,18 +993,34 @@ const BallotDetailPage = () => {
                     )}
                   </div>
                   
-                  {/* Voting information */}
-                  {ballot.hasVoted && (
-                    <div className="bg-green-900/40 border border-green-700/50 text-green-200 p-4 rounded-lg">
-                      <div className="flex items-center mb-2">
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        <span className="text-lg font-medium">You have already voted on this ballot</span>
-                      </div>
-                      {ballot.votedFor !== undefined && (
-                        <div className="pl-7 text-base">
-                          You voted for: <span className="font-semibold">{
-                            ballot.candidates.find(c => c.id === ballot.votedFor)?.name || `Candidate #${ballot.votedFor}`
-                          }</span>
+                  {/* User Vote Status */}
+                  {currentAccount && (
+                    <div className={`p-4 rounded-lg mb-4 ${
+                      ballot.hasVoted 
+                        ? 'bg-green-900/20 border border-green-800/30' 
+                        : ballot.status === 'Active'
+                          ? 'bg-blue-900/20 border border-blue-800/30'
+                          : 'bg-amber-900/20 border border-amber-800/30'
+                    }`}>
+                      {ballot.hasVoted ? (
+                        <div className="flex items-center text-green-300">
+                          <CheckCircle2 className="h-5 w-5 mr-2" />
+                          <span>
+                            You have voted for{' '}
+                            <span className="font-medium">
+                              {ballot.candidates.find(c => c.id === ballot.votedFor)?.name || 'Unknown candidate'}
+                            </span>
+                          </span>
+                        </div>
+                      ) : ballot.status === 'Active' ? (
+                        <div className="flex items-center text-blue-300">
+                          <Vote className="h-5 w-5 mr-2" />
+                          <span>You haven't voted on this ballot yet</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-amber-300">
+                          <AlertCircle className="h-5 w-5 mr-2" />
+                          <span>You didn't vote on this ballot before it closed</span>
                         </div>
                       )}
                     </div>
@@ -1284,6 +1249,26 @@ const BallotDetailPage = () => {
             </div>
           )}
         </div>
+        
+        {/* Connect Wallet Dialog */}
+        <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Connect Your Wallet</DialogTitle>
+              <DialogDescription>
+                You need to connect your wallet to vote on this ballot.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-center py-4">
+              <ConnectButton className="w-full" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConnectDialog(false)}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </FeatureGuard>
   );

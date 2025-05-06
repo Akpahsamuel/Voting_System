@@ -62,9 +62,16 @@ export function parseBallotFromResponse(response: SuiObjectResponse): Ballot | n
   // Parse candidates
   const candidates: Candidate[] = [];
   for (let i = 0; i < candidatesData.length; i++) {
-    const candidate = candidatesData[i];
+    let candidate = candidatesData[i];
     
     if (!candidate) continue;
+    
+    // Handle fields encapsulation that may exist in Sui objects
+    if (candidate.fields) {
+      candidate = candidate.fields;
+    }
+    
+    console.log("Processing candidate data:", candidate);
     
     // Extract image URL which might be in different formats
     let imageUrl = undefined;
@@ -74,14 +81,31 @@ export function parseBallotFromResponse(response: SuiObjectResponse): Ballot | n
       } else if (candidate.image_url.some) {
         // Handle Option<String> from Sui Move
         imageUrl = candidate.image_url.some || undefined;
+      } else if (candidate.image_url.fields && candidate.image_url.fields.some) {
+        imageUrl = candidate.image_url.fields.some;
       }
     }
     
+    // Extract votes with better error handling
+    let votes = 0;
+    try {
+      if (typeof candidate.vote_count !== 'undefined') {
+        votes = Number(candidate.vote_count);
+      } else if (typeof candidate.votes !== 'undefined') {
+        votes = Number(candidate.votes);
+      }
+      
+      // Log the vote count for debugging
+      console.log(`Extracted votes for candidate ${candidate.id || i}: ${votes}`);
+    } catch (err) {
+      console.error("Error parsing vote count:", err);
+    }
+    
     candidates.push({
-      id: Number(candidate.id || 0),
-      name: candidate.name || "",
-      description: candidate.description || "",
-      votes: Number(candidate.vote_count || 0),
+      id: Number(candidate.id || i),
+      name: candidate.name || `Candidate ${i+1}`,
+      description: candidate.description || "No description available",
+      votes: votes,
       imageUrl: imageUrl
     });
   }
