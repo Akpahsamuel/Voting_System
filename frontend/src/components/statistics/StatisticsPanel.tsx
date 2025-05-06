@@ -62,6 +62,7 @@ export const StatisticsPanel = () => {
     if (dashboardData?.data?.content?.dataType !== "moveObject") return [];
 
     const fields = dashboardData.data.content.fields as any;
+    // Only return proposal IDs, not ballot IDs
     return fields?.proposals_ids || [];
   }
 
@@ -84,6 +85,15 @@ export const StatisticsPanel = () => {
         if (obj.content?.dataType !== "moveObject") return null;
 
         const fields = obj.content.fields as any;
+        
+        // Check if this is a proposal and not a ballot
+        // Proposals have voted_yes_count and voted_no_count fields
+        // Ballots have candidates with votes
+        if (!fields.voted_yes_count && !fields.voted_no_count) {
+          console.log("Skipping non-proposal object:", obj.objectId);
+          return null;
+        }
+        
         return {
           id: obj.objectId,
           title: fields.title || "Untitled Proposal",
@@ -96,6 +106,7 @@ export const StatisticsPanel = () => {
       })
       .filter((item): item is ProposalData => item !== null);
 
+    console.log("Filtered proposals for statistics:", parsedProposals.length);
     setProposals(parsedProposals);
   }, [proposalsData]);
 
@@ -121,11 +132,11 @@ export const StatisticsPanel = () => {
   const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   // Filter proposals by time range
-  const filteredProposals = proposals.filter((p) => {
-    if (timeRange === "week") {
-      return p.expiration * 1000 >= oneWeekAgo.getTime();
-    } else if (timeRange === "month") {
-      return p.expiration * 1000 >= oneMonthAgo.getTime();
+  const filteredProposals = proposals.filter(p => {
+    if (timeRange === 'week') {
+      return p.expiration >= oneWeekAgo.getTime();
+    } else if (timeRange === 'month') {
+      return p.expiration >= oneMonthAgo.getTime();
     }
     return true;
   });
@@ -176,7 +187,7 @@ export const StatisticsPanel = () => {
   
   // Create date groupings
   const dateGroups = sortedProposals.reduce((acc, proposal) => {
-    const date = new Date(proposal.expiration * 1000);
+    const date = new Date(proposal.expiration);
     const dateStr = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 
     if (!acc[dateStr]) {

@@ -1,14 +1,14 @@
 /**
  * Utility functions for generating Sui Explorer (sui scan) URLs
  */
-import { networkConfig } from "../config/networkConfig";
+import { getNetwork } from "./networkUtils";
 
 /**
  * Get the appropriate explorer base URL based on the current network
  */
 function getExplorerBaseUrl(): string {
-  // Get the current network from environment variables
-  const currentNetwork = import.meta.env.VITE_NETWORK;
+  // Get the current network using the getNetwork function
+  const currentNetwork = getNetwork();
   
   console.log("Current network for explorer:", currentNetwork);
   
@@ -21,14 +21,9 @@ function getExplorerBaseUrl(): string {
     case "devnet":
       return "https://suiscan.xyz/devnet";
     default:
-      // Force devnet if we're on a development environment (based on URL)
-      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-        console.log("Development environment detected, using devnet for explorer");
-        return "https://suiscan.xyz/devnet";
-      }
-      
-      // Default to devnet as fallback
-      return "https://suiscan.xyz/devnet";
+      // If network is unknown, use testnet as fallback
+      console.log("Unknown network for explorer, using testnet as fallback");
+      return "https://suiscan.xyz/testnet";
   }
 }
 

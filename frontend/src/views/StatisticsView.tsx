@@ -10,11 +10,13 @@ import 'chart.js/auto';
 import { ConnectButton } from "@mysten/dapp-kit";
 import { Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
-import React, { FC } from 'react';
+import { FC } from 'react';
 import Navbar from '../components/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import StatisticsPanel from "../components/statistics/StatisticsPanel";
 import AdvancedAnalytics from "../components/statistics/AdvancedAnalytics";
+import BallotStatisticsPanel from "../components/statistics/BallotStatisticsPanel";
+import CombinedAnalytics from "../components/statistics/CombinedAnalytics";
 
 // Register Chart.js components
 ChartJS.register(
@@ -44,7 +46,7 @@ interface StatProposal {
 export const StatisticsView: FC = () => {
   const dashboardId = useNetworkVariable("dashboardId" as any);
   const [proposals, setProposals] = useState<StatProposal[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'advanced' | 'user'>('overview');
+  const [activeTab, setActiveTab] = useState<'proposals' | 'ballots' | 'advanced' | 'user'>('proposals');
   const account = useCurrentAccount();
   const { data: voteNftsRes } = useVoteNfts();
   const [isLoading, setIsLoading] = useState(true);
@@ -119,45 +121,54 @@ export const StatisticsView: FC = () => {
   if (isPending) return <div className="text-center text-gray-500 min-h-screen bg-black bg-grid-pattern pt-24">Loading statistics...</div>;
 
   return (
-    <div className="min-h-screen bg-black bg-grid-pattern text-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <Navbar />
-      <div className="container mx-auto px-4 py-8 pt-24">
-        <h1 className="text-3xl font-bold mb-4 text-white">Governance Statistics</h1>
+      <div className="container max-w-6xl mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-white">Platform Statistics</h1>
+          
+          {!account ? (
+            <ConnectButton className="bg-blue-600 hover:bg-blue-700" />
+          ) : null}
+        </div>
 
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
           </div>
         ) : (
-          <>
-            <Tabs defaultValue="overview" className="w-full mb-8">
-              <TabsList className="grid w-full grid-cols-3 mb-6">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="advanced">Advanced Analytics</TabsTrigger>
-                <TabsTrigger value="user">Your Activity</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+            <TabsList className="grid w-full max-w-md grid-cols-4 mb-8">
+              <TabsTrigger value="proposals">Proposals</TabsTrigger>
+              <TabsTrigger value="ballots">Ballots</TabsTrigger>
+              <TabsTrigger value="advanced">Combined</TabsTrigger>
+              <TabsTrigger value="user">My Activity</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="proposals">
+              <div className="space-y-6">
                 <StatisticsPanel />
-              </TabsContent>
-
-              <TabsContent value="advanced" className="space-y-6">
-                <AdvancedAnalytics />
-              </TabsContent>
-
-              <TabsContent value="user" className="space-y-6">
-                {/* User Activity Card - Dedicated Tab */}
+                <div className="mt-8">
+                  <h2 className="text-2xl font-semibold text-white mb-4">Proposal Advanced Analytics</h2>
+                  <AdvancedAnalytics />
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="ballots">
+              <BallotStatisticsPanel />
+            </TabsContent>
+            
+            <TabsContent value="advanced">
+              <CombinedAnalytics />
+            </TabsContent>
+            
+            <TabsContent value="user">
+              {account ? (
                 <div className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-lg">
                   <h2 className="text-xl font-semibold mb-4">Your Voting Activity</h2>
 
-                  {!account ? (
-                    <div className="bg-black/30 p-6 rounded-lg text-center">
-                      <p className="text-white/70 mb-4">Connect your wallet to see your voting activity</p>
-                      <div className="flex justify-center">
-                        <ConnectButton />
-                      </div>
-                    </div>
-                  ) : userVotedCount === 0 ? (
+                  {userVotedCount === 0 ? (
                     <div className="bg-black/30 p-6 rounded-lg text-center">
                       <p className="text-white/70">You haven't voted on any proposals yet</p>
                       <Button
@@ -242,9 +253,15 @@ export const StatisticsView: FC = () => {
                     </>
                   )}
                 </div>
-              </TabsContent>
-            </Tabs>
-          </>
+              ) : (
+                <div className="bg-slate-800/50 rounded-lg p-8 text-center">
+                  <h3 className="text-xl font-medium text-white mb-4">Connect Your Wallet</h3>
+                  <p className="text-slate-300 mb-6">Connect your wallet to view your voting activity and statistics</p>
+                  <ConnectButton className="bg-blue-600 hover:bg-blue-700" />
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </div>

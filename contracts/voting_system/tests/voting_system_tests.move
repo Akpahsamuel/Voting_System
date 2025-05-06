@@ -3,10 +3,9 @@ module voting_system::voting_system_tests{
 
 use sui::test_scenario;
 use sui::clock;
-// use sui::object::{Self, ID};
 // use sui::tx_context::TxContext;
 use voting_system::proposal::{Self, Proposal, VoteProofNFT};
-use voting_system::dashboard::{Self, AdminCap, Dashboard};
+use voting_system::dashboard::{Self, AdminCap, Dashboard, SuperAdminCap};
 
 const EWrongVoteCount: u64 = 0;
 const EWrongNftUrl: u64 = 1;
@@ -323,7 +322,7 @@ fun test_change_proposal_status() {
 }
 
 #[test]
-#[expected_failure(abort_code = voting_system::proposal::EProposalExpired)]
+#[expected_failure(abort_code = proposal::EProposalExpired)]
 fun test_voting_expiration() {
     let bob = @0xB0B;
     let admin = @0xA01;
@@ -349,12 +348,14 @@ fun test_voting_expiration() {
 
     scenario.next_tx(bob);
     {
-        let  dashboard = scenario.take_shared<Dashboard>();
+        let dashboard = scenario.take_shared<Dashboard>();
         let mut proposal = scenario.take_shared<Proposal>();
 
         let mut test_clock = clock::create_for_testing(scenario.ctx());
+        // Set time past expiration
         test_clock.set_for_testing(2000000000001);
         
+        // This should fail with EProposalExpired because the proposal is expired
         proposal::vote(&mut proposal, &dashboard, true, &test_clock, scenario.ctx());
 
         test_scenario::return_shared(proposal);
@@ -504,6 +505,251 @@ fun test_private_proposal_unauthorized_voter() {
         test_clock.destroy_for_testing();
     };
     
+    scenario.end();
+}
+
+#[test]
+fun test_batch_voter_registration() {
+    let admin = @0xCA;
+    let voter1 = @0xCB;
+    let voter2 = @0xCC;
+    let voter3 = @0xCD;
+    let proposal_id = object::id_from_address(@0xDEAD);
+
+    let mut scenario = test_scenario::begin(admin);
+    
+    // Initialize with proper SuperAdminCap
+    {
+        let otw = dashboard::new_otw(scenario.ctx());
+        dashboard::issue_super_admin_cap(scenario.ctx());
+        dashboard::new(otw, scenario.ctx());
+    };
+
+    // Register a private proposal
+    scenario.next_tx(admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let super_admin_cap = scenario.take_from_sender<SuperAdminCap>();
+        
+        dashboard::register_proposal_super(
+            &mut dashboard, 
+            &super_admin_cap, 
+            proposal_id, 
+            true, // is_private
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(super_admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+
+    // Register multiple voters in batch
+    scenario.next_tx(admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let super_admin_cap = scenario.take_from_sender<SuperAdminCap>();
+        
+        // Create a vector of voter addresses
+        let voters = vector[voter1, voter2, voter3];
+        
+        // Register all voters in batch
+        dashboard::register_voters_batch_for_private_proposal_super(
+            &super_admin_cap,
+            &mut dashboard,
+            proposal_id,
+            voters,
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(super_admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Check if batch voter registration worked correctly
+    scenario.next_tx(admin);
+    {
+        let dashboard = scenario.take_shared<Dashboard>();
+        
+        // Verify all voters are registered
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter1), 0);
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter2), 0);
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter3), 0);
+        
+        // Verify registered voters list contains all addresses
+        let registered_voters = dashboard::get_registered_voters(&dashboard, proposal_id);
+        assert!(vector::length(&registered_voters) == 3, 0);
+        
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Unregister multiple voters in batch
+    scenario.next_tx(admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let super_admin_cap = scenario.take_from_sender<SuperAdminCap>();
+        
+        // Create vector with subset of voters to unregister
+        let voters_to_remove = vector[voter1, voter3];
+        
+        dashboard::unregister_voters_batch_from_private_proposal_super(
+            &super_admin_cap,
+            &mut dashboard,
+            proposal_id,
+            voters_to_remove,
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(super_admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Check if batch unregistration worked correctly
+    scenario.next_tx(admin);
+    {
+        let dashboard = scenario.take_shared<Dashboard>();
+        
+        // Voter1 and Voter3 should be unregistered
+        assert!(!dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter1), 0);
+        assert!(!dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter3), 0);
+        
+        // Voter2 should still be registered
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter2), 0);
+        
+        // Verify registered voters array has only voter2
+        let registered_voters = dashboard::get_registered_voters(&dashboard, proposal_id);
+        assert!(vector::length(&registered_voters) == 1, 0);
+        assert!(*vector::borrow(&registered_voters, 0) == voter2, 0);
+        
+        test_scenario::return_shared(dashboard);
+    };
+
+    scenario.end();
+}
+
+#[test]
+fun test_batch_voter_registration_with_admin_cap() {
+    let admin = @0xCA;
+    let regular_admin = @0xCB;
+    let voter1 = @0xCC;
+    let voter2 = @0xCD;
+    let voter3 = @0xCE;
+    let proposal_id = object::id_from_address(@0xDEAD);
+
+    let mut scenario = test_scenario::begin(admin);
+    
+    // Initialize with proper SuperAdminCap
+    {
+        let otw = dashboard::new_otw(scenario.ctx());
+        dashboard::issue_super_admin_cap(scenario.ctx());
+        dashboard::new(otw, scenario.ctx());
+    };
+
+    // Create a regular admin
+    scenario.next_tx(admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let super_admin_cap = scenario.take_from_sender<SuperAdminCap>();
+        
+        dashboard::grant_admin_super(
+            &super_admin_cap, 
+            &mut dashboard, 
+            regular_admin, 
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(super_admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+
+    // Register a private proposal
+    scenario.next_tx(admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let super_admin_cap = scenario.take_from_sender<SuperAdminCap>();
+        
+        dashboard::register_proposal_super(
+            &mut dashboard, 
+            &super_admin_cap, 
+            proposal_id, 
+            true, // is_private
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(super_admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+
+    // Regular admin registers multiple voters in batch
+    scenario.next_tx(regular_admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let admin_cap = scenario.take_from_sender<AdminCap>();
+        
+        // Create a vector of voter addresses
+        let voters = vector[voter1, voter2, voter3];
+        
+        // Register all voters in batch
+        dashboard::register_voters_batch_for_private_proposal(
+            &admin_cap,
+            &mut dashboard,
+            proposal_id,
+            voters,
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Check if batch voter registration worked correctly
+    scenario.next_tx(admin);
+    {
+        let dashboard = scenario.take_shared<Dashboard>();
+        
+        // Verify all voters are registered
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter1), 0);
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter2), 0);
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter3), 0);
+        
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Regular admin unregisters multiple voters in batch
+    scenario.next_tx(regular_admin);
+    {
+        let mut dashboard = scenario.take_shared<Dashboard>();
+        let admin_cap = scenario.take_from_sender<AdminCap>();
+        
+        // Create vector with subset of voters to unregister
+        let voters_to_remove = vector[voter1, voter3];
+        
+        dashboard::unregister_voters_batch_from_private_proposal(
+            &admin_cap,
+            &mut dashboard,
+            proposal_id,
+            voters_to_remove,
+            scenario.ctx()
+        );
+        
+        scenario.return_to_sender(admin_cap);
+        test_scenario::return_shared(dashboard);
+    };
+    
+    // Check if batch unregistration worked correctly
+    scenario.next_tx(admin);
+    {
+        let dashboard = scenario.take_shared<Dashboard>();
+        
+        // Voter1 and Voter3 should be unregistered
+        assert!(!dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter1), 0);
+        assert!(!dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter3), 0);
+        
+        // Voter2 should still be registered
+        assert!(dashboard::is_voter_registered_for_proposal(&dashboard, proposal_id, voter2), 0);
+        
+        test_scenario::return_shared(dashboard);
+    };
+
     scenario.end();
 }
 

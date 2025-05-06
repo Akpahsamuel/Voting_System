@@ -8,25 +8,13 @@ import { Separator } from "../components/ui/separator";
 import { TESTNET_ADMIN_CAP, DEVNET_ADMIN_CAP, MAINNET_ADMIN_CAP, TESTNET_SUPER_ADMIN_CAP, DEVNET_SUPER_ADMIN_CAP, MAINNET_SUPER_ADMIN_CAP } from '../constants';
 import { Wallet, ShieldCheck, Activity, RefreshCw } from 'lucide-react';
 import { Badge } from "../components/ui/badge";
+import { getNetwork } from "../utils/networkUtils";
 
 export const AdminDebug: FC = () => {
   const account = useCurrentAccount();
-  const packageId = useNetworkVariable("packageId");
-  const [network, setNetwork] = useState<string>("unknown");
+  const packageId = useNetworkVariable("packageId" as any);
+  const network = getNetwork();
   
-  // Try to determine the current network
-  useEffect(() => {
-    if (window.location.hostname.includes('testnet')) {
-      setNetwork('testnet');
-    } else if (window.location.hostname.includes('devnet')) {
-      setNetwork('devnet');
-    } else if (window.location.hostname.includes('localhost')) {
-      setNetwork('devnet'); // Assuming local is on devnet
-    } else {
-      setNetwork('mainnet');
-    }
-  }, []);
-
   // Fetch all objects owned by current wallet
   const { data: allObjects, isLoading: isLoadingObjects, refetch: refetchObjects } = useSuiClientQuery(
     'getOwnedObjects',

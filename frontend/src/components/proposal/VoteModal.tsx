@@ -1,6 +1,6 @@
 import { FC, useRef, useState, useEffect } from "react";
 import { Proposal } from "../../types";
-import { ConnectButton, useCurrentWallet, useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentWallet, useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { Transaction } from "@mysten/sui/transactions";
 import { toast } from "react-toastify";
@@ -22,6 +22,8 @@ import { ThumbsUp, ThumbsDown, ExternalLink, Loader2, CheckCircle2, AlertCircle,
 import { cn } from "../../lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
+import { formatDate, normalizeTimestamp } from "../../utils/formatUtils";
+import { useTransactionExecution } from "../../hooks/useTransactionExecution";
 
 interface VoteModalProps {
   proposal: Proposal;
@@ -41,7 +43,7 @@ export const VoteModal: FC<VoteModalProps> = ({
   const { connectionStatus } = useCurrentWallet();
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
-  const { mutate: signAndExecute, isPending, isSuccess, reset } = useSignAndExecuteTransaction();
+  const { executeTransaction, isPending, isSuccess } = useTransactionExecution();
   const packageId = useNetworkVariable("packageId");
   const dashboardId = useNetworkVariable("dashboardId");
   const toastId = useRef<number | string>();
@@ -145,25 +147,8 @@ export const VoteModal: FC<VoteModalProps> = ({
     });
 
     showToast("Processing Transaction");
-    signAndExecute({
-      transaction: tx.serialize()
-    }, {
-      onError: (error) => {
-        console.error("Transaction error:", error);
-        
-        // Check for specific error messages
-        const errorMsg = error.toString().toLowerCase();
-        if (errorMsg.includes("proposal expired") || errorMsg.includes("eproposalexpired")) {
-          dismissToast("Error: Proposal has expired!");
-          setIsExpired(true);
-        } else if (errorMsg.includes("not registered") || errorMsg.includes("enotregisteredvoter")) {
-          dismissToast("Error: You're not registered to vote on this private proposal!");
-          setIsRegisteredVoter(false);
-        } else {
-          dismissToast("Transaction Failed!");
-        }
-      },
-      onSuccess: async ({ digest }) => {
+    executeTransaction(tx).then(
+      async ({ digest }) => {
         // Store the transaction digest for viewing on SuiScan
         setLatestTxDigest(digest);
         
@@ -188,11 +173,25 @@ export const VoteModal: FC<VoteModalProps> = ({
           console.log("No events found!");
         }
 
-        reset();
         dismissToast("Transaction Successful!");
         onVote(voteYes);
+      },
+      (error) => {
+        console.error("Transaction error:", error);
+        
+        // Check for specific error messages
+        const errorMsg = error.toString().toLowerCase();
+        if (errorMsg.includes("proposal expired") || errorMsg.includes("eproposalexpired")) {
+          dismissToast("Error: Proposal has expired!");
+          setIsExpired(true);
+        } else if (errorMsg.includes("not registered") || errorMsg.includes("enotregisteredvoter")) {
+          dismissToast("Error: You're not registered to vote on this private proposal!");
+          setIsRegisteredVoter(false);
+        } else {
+          dismissToast("Transaction Failed!");
+        }
       }
-    });
+    );
   };
 
   const votingDisabled = hasVoted || isPending || isSuccess || isExpired || (proposal.isPrivate && !isRegisteredVoter) || isChecking;
@@ -298,7 +297,13 @@ export const VoteModal: FC<VoteModalProps> = ({
                 {/* Show expiration date */}
                 <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex items-center">
                   <ClockIcon size={14} className="mr-1" />
-                  <span>Expires: {new Date(proposal.expiration).toLocaleString()}</span>
+                  <span>Expires: {formatDate(normalizeTimestamp(proposal.expiration) || proposal.expiration, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</span>
                 </div>
               </CardContent>
             </Card>

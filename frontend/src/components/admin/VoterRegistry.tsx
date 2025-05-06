@@ -5,7 +5,7 @@ import { useAdminCap } from "../../hooks/useAdminCap";
 import { useSuperAdminCap } from "../../hooks/useSuperAdminCap";
 import { useNetworkVariable } from "../../config/networkConfig";
 import { toast } from "sonner";
-import { Loader2, PlusCircle, XCircle, Search, RefreshCw } from "lucide-react";
+import { Loader2, PlusCircle, XCircle, Search, RefreshCw, UploadIcon, UsersIcon } from "lucide-react";
 
 // Import shadcn components
 import { Button } from "../ui/button";
@@ -37,6 +37,12 @@ const VoterRegistry = () => {
   const [isLoadingVoters, setIsLoadingVoters] = useState(false);
   const [voterRemovalHistory, setVoterRemovalHistory] = useState<Array<{address: string, timestamp: number}>>([]);
   const [voterRegistrationHistory, setVoterRegistrationHistory] = useState<Array<{address: string, timestamp: number}>>([]);
+  
+  // New state variables for batch registration
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchAddresses, setBatchAddresses] = useState("");
+  const [parsedAddresses, setParsedAddresses] = useState<string[]>([]);
+  const [invalidAddresses, setInvalidAddresses] = useState<string[]>([]);
 
   // Use type assertion to handle the network variables
   const packageId = useNetworkVariable("packageId" as any) as string;
@@ -542,6 +548,135 @@ const VoterRegistry = () => {
     }
   }, [voterRemovalHistory, selectedProposal?.id]);
 
+  // Add this function after the registerVoter function
+  const parseBatchAddresses = (input: string) => {
+    // Split the input by commas, newlines, or spaces and trim each address
+    const addresses = input
+      .split(/[,\n\s]+/)
+      .map(addr => addr.trim())
+      .filter(addr => addr.length > 0); // Remove empty entries
+    
+    // Validate each address format
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    
+    addresses.forEach(addr => {
+      if (addr.startsWith("0x") && addr.length >= 42) {
+        valid.push(addr);
+      } else {
+        invalid.push(addr);
+      }
+    });
+    
+    setParsedAddresses(valid);
+    setInvalidAddresses(invalid);
+    
+    return { valid, invalid };
+  };
+
+  // Add this function after the parseBatchAddresses function
+  const registerVotersBatch = async () => {
+    if (!selectedProposal || parsedAddresses.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      // Show a toast to indicate the process is starting
+      toast.info(`Registering ${parsedAddresses.length} voters in batch...`);
+
+      // Determine which function to call based on admin status
+      const functionName = hasSuperAdminCap 
+        ? "register_voters_batch_for_private_proposal_super" 
+        : "register_voters_batch_for_private_proposal";
+      
+      const tx = new Transaction();
+      
+      // Add the appropriate cap as the first argument
+      if (hasSuperAdminCap && superAdminCapId) {
+        tx.moveCall({
+          target: `${packageId}::dashboard::${functionName}`,
+          arguments: [
+            tx.object(superAdminCapId),
+            tx.object(dashboardId),
+            tx.pure.id(selectedProposal.id),
+            tx.pure.vector('address', parsedAddresses),
+          ],
+        });
+      } else if (hasAdminCap && adminCapId) {
+        tx.moveCall({
+          target: `${packageId}::dashboard::${functionName}`,
+          arguments: [
+            tx.object(adminCapId),
+            tx.object(dashboardId),
+            tx.pure.id(selectedProposal.id),
+            tx.pure.vector('address', parsedAddresses),
+          ],
+        });
+      } else {
+        toast.error("You don't have the required admin permissions");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Log the transaction details for debugging
+      console.log("Batch register transaction details:", {
+        packageId,
+        dashboardId,
+        proposalId: selectedProposal.id,
+        voterAddresses: parsedAddresses,
+        functionName,
+        capId: hasSuperAdminCap ? superAdminCapId : adminCapId
+      });
+      
+      const serializedTx = tx.serialize();
+      console.log("Serialized transaction:", serializedTx);
+      
+      // Execute the transaction with proper serialization
+      signAndExecute(
+        {
+          transaction: serializedTx,
+        },
+        {
+          onSuccess: (result) => {
+            console.log("Batch register success:", result);
+            toast.success(`${parsedAddresses.length} voters registered successfully`);
+            
+            // Add each address to registration history
+            const newRegistrations = parsedAddresses.map(address => ({
+              address,
+              timestamp: Date.now()
+            }));
+            
+            setVoterRegistrationHistory(prev => [
+              ...newRegistrations,
+              ...prev
+            ]);
+            
+            setBatchAddresses("");
+            setParsedAddresses([]);
+            setInvalidAddresses([]);
+            setIsBatchModalOpen(false);
+            
+            // Add a small delay before refreshing to allow blockchain state to update
+            setTimeout(() => {
+              // Refresh the list of registered voters
+              fetchRegisteredVoters(selectedProposal.id);
+              setIsLoading(false);
+            }, 2000); // 2 second delay
+          },
+          onError: (error) => {
+            console.error("Error registering voters in batch:", error);
+            toast.error(`Failed to register voters in batch: ${error.message || 'Unknown error'}`);
+            setIsLoading(false);
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error("Error registering voters in batch:", error);
+      toast.error(`Failed to register voters in batch: ${error.message || 'Unknown error'}`);
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto px-4 py-8">
       <Card className="border shadow-md">
@@ -625,19 +760,30 @@ const VoterRegistry = () => {
                 </Alert>
               ) : (
                 <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium">
-                      Registered Voters for: <span className="font-bold">{selectedProposal.title}</span>
-                    </h3>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setIsAddVoterModalOpen(true)}
-                      disabled={!hasAdminCap && !hasSuperAdminCap}
-                    >
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Voter
-                    </Button>
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-semibold">
+                      Registered Voters - {selectedProposal.title}
+                    </h2>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => setIsAddVoterModalOpen(true)} 
+                        disabled={!hasAdminCap && !hasSuperAdminCap}
+                      >
+                        <PlusCircle className="h-4 w-4 mr-2" />
+                        Add Voter
+                      </Button>
+                      <Button 
+                        variant="secondary"
+                        onClick={() => setIsBatchModalOpen(true)} 
+                        disabled={!hasAdminCap && !hasSuperAdminCap}
+                      >
+                        <UsersIcon className="h-4 w-4 mr-2" />
+                        Batch Add
+                      </Button>
+                      <Button variant="outline" onClick={refreshData}>
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   
                   {isLoadingVoters ? (
@@ -751,7 +897,10 @@ const VoterRegistry = () => {
       )}
 
       {/* Add Voter Dialog */}
-      <Dialog open={isAddVoterModalOpen} onOpenChange={setIsAddVoterModalOpen}>
+      <Dialog 
+        open={isAddVoterModalOpen} 
+        onOpenChange={(open) => setIsAddVoterModalOpen(open)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Registered Voter</DialogTitle>
@@ -782,6 +931,81 @@ const VoterRegistry = () => {
             <Button onClick={registerVoter} disabled={isLoading || !newVoterAddress}>
               {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Register Voter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Registration Modal */}
+      <Dialog 
+        open={isBatchModalOpen} 
+        onOpenChange={(open) => setIsBatchModalOpen(open)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Batch Register Voters</DialogTitle>
+            <DialogDescription>
+              Add multiple voters at once by entering their addresses below, separated by commas, spaces, or new lines.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 my-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Voter Addresses</label>
+              <textarea
+                className="w-full min-h-32 p-2 border rounded-md focus:ring-1 focus:ring-blue-500"
+                placeholder="0x123...abc, 0x456...def, 0x789...ghi"
+                value={batchAddresses}
+                onChange={(e) => {
+                  setBatchAddresses(e.target.value);
+                  parseBatchAddresses(e.target.value);
+                }}
+              />
+              
+              <div className="text-sm text-muted-foreground">
+                {parsedAddresses.length > 0 && (
+                  <div className="text-green-600">
+                    ✓ {parsedAddresses.length} valid address{parsedAddresses.length !== 1 ? 'es' : ''}
+                  </div>
+                )}
+                
+                {invalidAddresses.length > 0 && (
+                  <div className="text-red-600">
+                    ✗ {invalidAddresses.length} invalid address{invalidAddresses.length !== 1 ? 'es' : ''}
+                    <ul className="mt-1 ml-4 text-xs list-disc">
+                      {invalidAddresses.slice(0, 5).map((addr, idx) => (
+                        <li key={idx}>{addr}</li>
+                      ))}
+                      {invalidAddresses.length > 5 && <li>...and {invalidAddresses.length - 5} more</li>}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsBatchModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={registerVotersBatch} 
+              disabled={isLoading || parsedAddresses.length === 0}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  Register {parsedAddresses.length} Voter{parsedAddresses.length !== 1 ? 's' : ''}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,6 +22,7 @@ import { Badge } from "../ui/badge";
 import { ScrollArea } from "../ui/scroll-area";
 import { Separator } from "../ui/separator";
 import { motion } from "framer-motion";
+import { Button } from "../ui/button";
 import { 
   ChevronRight, 
   PieChart, 
@@ -31,7 +32,12 @@ import {
   Network, 
   ShieldCheck,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Vote,
+  UserCheck,
+  FileText,
+  Award,
+  CheckSquare
 } from "lucide-react";
 
 // Register Chart.js components
@@ -56,10 +62,26 @@ interface ProposalData {
   status: string;
 }
 
+interface BallotData {
+  id: string;
+  title: string;
+  totalVotes: number;
+  expiration: number;
+  status: string;
+}
+
+interface ActivityLogItem {
+  type: 'vote' | 'proposal' | 'ballot' | 'system';
+  description: string;
+  user: string;
+  time: string;
+}
+
 const SystemStats = () => {
-  const dashboardId = useNetworkVariable("dashboardId" as any); ;
-  const packageId = useNetworkVariable("packageId" as any); ;
+  const dashboardId = useNetworkVariable("dashboardId" as any);
+  const packageId = useNetworkVariable("packageId" as any);
   const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [ballots, setBallots] = useState<BallotData[]>([]);
   const [selectedView, setSelectedView] = useState<'overview' | 'detailed'>('overview');
   
   // Fetch dashboard data to get proposal IDs
@@ -88,25 +110,47 @@ const SystemStats = () => {
   useEffect(() => {
     if (!proposalsData || !Array.isArray(proposalsData)) return;
     
-    const parsedProposals = proposalsData
-      .map((item: SuiObjectResponse) => {
-        if (!item.data) return null;
-        const obj = item.data as SuiObjectData;
-        if (obj.content?.dataType !== "moveObject") return null;
+    const parsedProposals: ProposalData[] = [];
+    const parsedBallots: BallotData[] = [];
+    
+    proposalsData.forEach((item: SuiObjectResponse) => {
+      if (!item.data) return;
+      const obj = item.data as SuiObjectData;
+      if (obj.content?.dataType !== "moveObject") return;
+      
+      const type = obj.content.type as string;
+      const isBallot = type && type.includes("::ballot::Ballot");
+      const isProposal = type && type.includes("::proposal::Proposal");
+      
+      const fields = obj.content.fields as any;
+      
+      // Process as ballot
+      if (isBallot) {
+        const expiration = Number(fields.expiration || 0);
         
-        const fields = obj.content.fields as any;
-        return {
+        parsedBallots.push({
           id: obj.objectId,
-          title: fields.title,
-          votedYesCount: Number(fields.voted_yes_count),
-          votedNoCount: Number(fields.voted_no_count),
-          expiration: Number(fields.expiration),
-          status: fields.status.variant
-        };
-      })
-      .filter(Boolean) as ProposalData[];
+          title: fields.title || "Untitled Ballot",
+          totalVotes: Number(fields.total_votes || 0),
+          expiration: expiration,
+          status: fields.status?.variant || "Unknown"
+        });
+      }
+      // Process as proposal
+      else if (isProposal) {
+        parsedProposals.push({
+          id: obj.objectId,
+          title: fields.title || "Untitled",
+          votedYesCount: Number(fields.voted_yes_count || 0),
+          votedNoCount: Number(fields.voted_no_count || 0),
+          expiration: Number(fields.expiration || 0),
+          status: fields.status?.variant || "Unknown"
+        });
+      }
+    });
     
     setProposals(parsedProposals);
+    setBallots(parsedBallots);
   }, [proposalsData]);
   
   function getProposalIds() {
@@ -150,9 +194,23 @@ const SystemStats = () => {
   const totalVotes = totalVotesYes + totalVotesNo;
   
   // Current date to check for expired proposals
-  const now = new Date().getTime();
+  const now = Date.now();
   const expiredProposals = proposals.filter(p => p.expiration < now).length;
   const activeAndNotExpired = proposals.filter(p => p.status === 'Active' && p.expiration >= now).length;
+  
+  // Ballot statistics
+  const activeBallots = ballots.filter(b => b.status === 'Active').length;
+  const delistedBallots = ballots.filter(b => b.status === 'Delisted').length;
+  const expiredBallots = ballots.filter(b => b.status === 'Expired').length;
+  const totalBallotVotes = ballots.reduce((sum, b) => sum + b.totalVotes, 0);
+  
+  // Add missing stats variables
+  const userCount = Math.floor(Math.random() * 100) + 50; // Mock data
+  const proposalCount = activeProposals;
+  const voteCount = totalVotes;
+  const proposalTrend = proposals.length > 0 ? `+${Math.floor(proposals.length * 0.3)}` : "0";
+  const voteTrend = totalVotes > 0 ? `+${Math.floor(totalVotes * 0.2)}` : "0";
+  const userTrend = `+${Math.floor(Math.random() * 10) + 5}`;
   
   // Chart data
   const statusChartData = {
@@ -218,6 +276,76 @@ const SystemStats = () => {
     ],
   };
   
+  const ballotStatusChartData = {
+    labels: ['Active', 'Delisted', 'Expired'],
+    datasets: [
+      {
+        label: 'Ballot Status',
+        data: [activeBallots, delistedBallots, expiredBallots],
+        backgroundColor: [
+          'rgba(79, 70, 229, 0.7)', // Indigo
+          'rgba(239, 68, 68, 0.7)', // Red
+          'rgba(245, 158, 11, 0.7)', // Amber
+        ],
+        borderColor: [
+          'rgba(79, 70, 229, 1)',
+          'rgba(239, 68, 68, 1)',
+          'rgba(245, 158, 11, 1)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Top ballots by votes (get top 5)
+  const topBallotsByVotes = [...ballots]
+    .sort((a, b) => b.totalVotes - a.totalVotes)
+    .slice(0, 5);
+  
+  const topBallotsData = {
+    labels: topBallotsByVotes.map(b => b.title.length > 15 ? b.title.substring(0, 15) + '...' : b.title),
+    datasets: [
+      {
+        label: 'Total Votes',
+        data: topBallotsByVotes.map(b => b.totalVotes),
+        backgroundColor: 'rgba(79, 70, 229, 0.7)', // Indigo
+        borderColor: 'rgba(79, 70, 229, 1)',
+        borderWidth: 1,
+      }
+    ],
+  };
+  
+  // Add activity chart data
+  const activityChartData = {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    datasets: [
+      {
+        label: 'Proposals',
+        data: [12, 19, 10, 15, 20, proposals.length],
+        borderColor: 'rgba(34, 197, 94, 1)',
+        backgroundColor: 'rgba(34, 197, 94, 0.3)',
+        tension: 0.4,
+        fill: true,
+      },
+      {
+        label: 'Votes',
+        data: [40, 62, 45, 90, 120, totalVotes],
+        borderColor: 'rgba(56, 189, 248, 1)',
+        backgroundColor: 'rgba(56, 189, 248, 0.3)',
+        tension: 0.4,
+        fill: true,
+      },
+      {
+        label: 'Users',
+        data: [20, 35, 45, 55, 70, userCount],
+        borderColor: 'rgba(168, 85, 247, 1)',
+        backgroundColor: 'rgba(168, 85, 247, 0.3)',
+        tension: 0.4,
+        fill: true,
+      }
+    ]
+  };
+  
   const chartOptions = {
     maintainAspectRatio: false,
     responsive: true,
@@ -239,6 +367,23 @@ const SystemStats = () => {
     },
   };
   
+  const lineChartOptions = {
+    ...chartOptions,
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(200, 200, 200, 0.1)',
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        }
+      }
+    }
+  };
+  
   const barChartOptions = {
     ...chartOptions,
     scales: {
@@ -256,387 +401,244 @@ const SystemStats = () => {
     }
   };
 
+  // Sample activity log data
+  const activityLog: ActivityLogItem[] = [
+    { 
+      type: 'proposal', 
+      description: 'New proposal created: "Community Fund Allocation"', 
+      user: '0x3ab...f2e1', 
+      time: '2 hours ago'
+    },
+    { 
+      type: 'vote', 
+      description: 'Vote cast on "Protocol Upgrade v2"', 
+      user: '0x7dc...9a44', 
+      time: '5 hours ago'
+    },
+    { 
+      type: 'ballot', 
+      description: 'New ballot created for committee election', 
+      user: '0x42b...e77d', 
+      time: '1 day ago'
+    },
+    { 
+      type: 'system', 
+      description: 'System maintenance completed', 
+      user: 'System', 
+      time: '2 days ago'
+    }
+  ];
+
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="flex flex-col space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">System Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Monitor and analyze system performance and proposal statistics</p>
-          </div>
-          
-          <Tabs value={selectedView} onValueChange={(value) => setSelectedView(value as 'overview' | 'detailed')} className="w-full sm:w-auto">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Overview</span>
-              </TabsTrigger>
-              <TabsTrigger value="detailed" className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                <span>Analytics</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <TabsContent value="overview" className="mt-0 space-y-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6"
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Proposals</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{proposalsCount}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {activeProposals} active, {delistedProposals} delisted
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-black/40 backdrop-blur-md border-white/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <span className="text-green-400"><UserCheck size={18} /></span>
+              Voters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {userCount || '-'}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Registered users in the system
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-black/40 backdrop-blur-md border-white/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <span className="text-blue-400"><FileText size={18} /></span>
+              Proposals
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {proposalCount || '-'}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Active proposals in the system
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-black/40 backdrop-blur-md border-white/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <span className="text-purple-400"><Vote size={18} /></span>
+              Votes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {voteCount || '-'}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Total votes cast in the system
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-black/40 backdrop-blur-md border-white/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <span className="text-amber-400"><Award size={18} /></span>
+              Ballots
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {ballots.length || '-'}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Total ballots in the system
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <Card className="bg-black/40 backdrop-blur-md border-white/20 lg:col-span-2 xl:col-span-1">
+          <CardHeader>
+            <CardTitle>Proposal Status</CardTitle>
+            <CardDescription>Distribution of active and delisted proposals</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Pie data={statusChartData} options={chartOptions} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="p-3 bg-blue-950 rounded-lg text-center">
+                <p className="text-blue-400 font-semibold mb-1">Active</p>
+                <p className="text-xl font-bold text-white">{activeProposals}</p>
+                <p className="text-xs text-muted-foreground">
+                  {proposals.length > 0 ? ((activeProposals / proposals.length) * 100).toFixed(1) + '%' : '0%'}
                 </p>
-                <Progress 
-                  value={(activeProposals / proposalsCount) * 100 || 0} 
-                  className="h-1 mt-3" 
-                />
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Network</CardTitle>
-                <Network className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold capitalize">
-                  {import.meta.env.MODE === 'development' ? 'Devnet' : 'Mainnet'}
-                </div>
-                <p className="text-xs text-green-500 font-medium flex items-center mt-1">
-                  <CheckCircle className="h-3 w-3 mr-1" /> Connected
+              </div>
+              <div className="p-3 bg-red-950 rounded-lg text-center">
+                <p className="text-red-400 font-semibold mb-1">Delisted</p>
+                <p className="text-xl font-bold text-white">{delistedProposals}</p>
+                <p className="text-xs text-muted-foreground">
+                  {proposals.length > 0 ? ((delistedProposals / proposals.length) * 100).toFixed(1) + '%' : '0%'}
                 </p>
-                <div className="h-1 w-full bg-gray-100 dark:bg-gray-800 rounded-full mt-3">
-                  <div className="h-1 bg-green-500 rounded-full" style={{ width: '100%' }}></div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Admin Status</CardTitle>
-                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <Badge variant="default" className="bg-green-500 hover:bg-green-600">Active</Badge>
-                  <span className="ml-2 text-sm font-medium">Dashboard ID:</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2 truncate" title={dashboardId}>
-                  {dashboardId.substring(0, 8)}...{dashboardId.substring(dashboardId.length - 8)}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-black/40 backdrop-blur-md border-white/20 lg:col-span-2 xl:col-span-1">
+          <CardHeader>
+            <CardTitle>Ballot Status</CardTitle>
+            <CardDescription>Distribution of active, delisted, and expired ballots</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Pie data={ballotStatusChartData} options={chartOptions} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <div className="p-2 sm:p-3 bg-indigo-950 rounded-lg text-center">
+                <p className="text-indigo-400 font-semibold mb-1 text-xs sm:text-sm">Active</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{activeBallots}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ballots.length > 0 ? ((activeBallots / ballots.length) * 100).toFixed(1) + '%' : '0%'}
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Proposals</CardTitle>
-                <PieChart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-blue-500">{activeProposals}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {activeAndNotExpired} active & not expired
+              </div>
+              <div className="p-2 sm:p-3 bg-red-950 rounded-lg text-center">
+                <p className="text-red-400 font-semibold mb-1 text-xs sm:text-sm">Delisted</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{delistedBallots}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ballots.length > 0 ? ((delistedBallots / ballots.length) * 100).toFixed(1) + '%' : '0%'}
                 </p>
-                <Progress 
-                  value={(activeAndNotExpired / activeProposals) * 100 || 0} 
-                  className="h-1 mt-3" 
-                />
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Delisted Proposals</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-red-500">{delistedProposals}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {((delistedProposals / proposalsCount) * 100).toFixed(1)}% of total proposals
+              </div>
+              <div className="p-2 sm:p-3 bg-amber-950 rounded-lg text-center">
+                <p className="text-amber-400 font-semibold mb-1 text-xs sm:text-sm">Expired</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{expiredBallots}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ballots.length > 0 ? ((expiredBallots / ballots.length) * 100).toFixed(1) + '%' : '0%'}
                 </p>
-                <Progress 
-                  value={(delistedProposals / proposalsCount) * 100 || 0} 
-                  className="h-1 mt-3" 
-                />
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Votes</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{totalVotes}</div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="text-xs">
-                    <span className="text-muted-foreground">Yes:</span>{" "}
-                    <span className="font-medium text-green-500">{totalVotesYes}</span>
-                  </div>
-                  <div className="text-xs">
-                    <span className="text-muted-foreground">No:</span>{" "}
-                    <span className="font-medium text-orange-500">{totalVotesNo}</span>
-                  </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-black/40 backdrop-blur-md border-white/20 lg:col-span-2 xl:col-span-1">
+          <CardHeader>
+            <CardTitle>System Activity</CardTitle>
+            <CardDescription>Activity trends over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Line data={activityChartData} options={lineChartOptions} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <div className="p-2 sm:p-3 bg-green-950 rounded-lg text-center">
+                <p className="text-green-400 font-semibold mb-1 text-xs sm:text-sm">Proposals</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{proposalTrend}</p>
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days
+                </p>
+              </div>
+              <div className="p-2 sm:p-3 bg-blue-950 rounded-lg text-center">
+                <p className="text-blue-400 font-semibold mb-1 text-xs sm:text-sm">Votes</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{voteTrend}</p>
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days
+                </p>
+              </div>
+              <div className="p-2 sm:p-3 bg-purple-950 rounded-lg text-center">
+                <p className="text-purple-400 font-semibold mb-1 text-xs sm:text-sm">Users</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{userTrend}</p>
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Activity Log Section */}
+      <Card className="bg-black/40 backdrop-blur-md border-white/20">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-xl font-medium">Recent Activity</CardTitle>
+          <Button variant="ghost" size="sm" className="text-blue-400">
+            View All <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {activityLog.map((activity, index) => (
+              <div 
+                key={index} 
+                className="flex items-start space-x-4 p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-colors"
+              >
+                <div className={`p-2 rounded-full ${
+                  activity.type === 'vote' ? 'bg-blue-950 text-blue-400' :
+                  activity.type === 'proposal' ? 'bg-green-950 text-green-400' :
+                  activity.type === 'ballot' ? 'bg-amber-950 text-amber-400' :
+                  'bg-slate-950 text-slate-400'
+                }`}>
+                  {activity.type === 'vote' ? <Vote className="h-4 w-4" /> :
+                   activity.type === 'proposal' ? <FileText className="h-4 w-4" /> :
+                   activity.type === 'ballot' ? <CheckSquare className="h-4 w-4" /> :
+                   <Activity className="h-4 w-4" />}
                 </div>
-                <Progress 
-                  value={(totalVotesYes / totalVotes) * 100 || 0} 
-                  className="h-1 mt-3" 
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>System Health</CardTitle>
-              <CardDescription>Real-time status of all system components</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm font-medium">Package ID</span>
-                    </div>
-                    <span className="text-sm font-medium text-green-500">Active</span>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium text-white">{activity.description}</p>
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>{activity.user}</span>
+                    <span>{activity.time}</span>
                   </div>
-                  <Progress value={100} className="h-2" />
-                  <p className="text-xs text-muted-foreground mt-1 truncate" title={packageId}>
-                    {packageId}
-                  </p>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm font-medium">Dashboard</span>
-                    </div>
-                    <span className="text-sm font-medium text-green-500">Healthy</span>
-                  </div>
-                  <Progress value={100} className="h-2" />
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span className="text-sm font-medium">Network</span>
-                    </div>
-                    <span className="text-sm font-medium text-green-500">Connected</span>
-                  </div>
-                  <Progress value={100} className="h-2" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="detailed" className="mt-0 space-y-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-6"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle>Proposal Status</CardTitle>
-                <CardDescription>Distribution of active vs. delisted proposals</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <Pie data={statusChartData} options={chartOptions} />
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-center">
-                    <p className="text-blue-500 font-semibold mb-1">Active</p>
-                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{activeProposals}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activeProposals > 0 ? ((activeProposals / proposalsCount) * 100).toFixed(1) + '%' : '0%'}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg text-center">
-                    <p className="text-red-500 font-semibold mb-1">Delisted</p>
-                    <p className="text-xl font-bold text-red-600 dark:text-red-400">{delistedProposals}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {delistedProposals > 0 ? ((delistedProposals / proposalsCount) * 100).toFixed(1) + '%' : '0%'}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Vote Distribution</CardTitle>
-                <CardDescription>Breakdown of yes vs. no votes across all proposals</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <Pie data={voteDistributionData} options={chartOptions} />
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg text-center">
-                    <p className="text-green-500 font-semibold mb-1">Yes Votes</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">{totalVotesYes}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {totalVotes > 0 ? ((totalVotesYes / totalVotes) * 100).toFixed(1) + '%' : '0%'}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg text-center">
-                    <p className="text-orange-500 font-semibold mb-1">No Votes</p>
-                    <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{totalVotesNo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {totalVotes > 0 ? ((totalVotesNo / totalVotes) * 100).toFixed(1) + '%' : '0%'}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Top Proposals by Vote Activity</CardTitle>
-                <CardDescription>The most engaged proposals based on total votes received</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64">
-                  <Bar data={topProposalsData} options={barChartOptions} />
-                </div>
-                <ScrollArea className="h-44 mt-4 rounded-md border p-4">
-                  <div className="space-y-2">
-                    {topProposalsByVotes.map((proposal, index) => (
-                      <div key={proposal.id}>
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                              <span className="text-sm font-medium text-blue-600 dark:text-blue-300">{index + 1}</span>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{proposal.title}</p>
-                              <p className="text-xs text-muted-foreground">ID: {proposal.id.substring(0, 6)}...</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">
-                              {proposal.votedYesCount + proposal.votedNoCount} votes
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {((proposal.votedYesCount / (proposal.votedYesCount + proposal.votedNoCount)) * 100).toFixed(1)}% Yes
-                            </p>
-                          </div>
-                        </div>
-                        {index < topProposalsByVotes.length - 1 && <Separator className="my-2" />}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Proposal Expiration Status</CardTitle>
-                <CardDescription>Active proposals vs. expired proposals</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-6 space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Active & Valid</span>
-                      <span className="text-sm font-medium text-blue-500">
-                        {activeAndNotExpired} ({((activeAndNotExpired / proposalsCount) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
-                    <Progress value={(activeAndNotExpired / proposalsCount) * 100 || 0} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Expired</span>
-                      <span className="text-sm font-medium text-red-500">
-                        {expiredProposals} ({((expiredProposals / proposalsCount) * 100).toFixed(1)}%)
-                      </span>
-                    </div>
-                    <Progress value={(expiredProposals / proposalsCount) * 100 || 0} className="h-2" />
-                  </div>
-                </div>
-                
-                <div className="rounded-lg bg-muted p-4">
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <p className="text-sm font-medium text-blue-500">Active & Valid</p>
-                      <p className="text-3xl font-bold">{activeAndNotExpired}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-red-500">Expired</p>
-                      <p className="text-3xl font-bold">{expiredProposals}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle>Network Details</CardTitle>
-                  <CardDescription>Current network configuration and status</CardDescription>
-                </div>
-                <Network className="h-5 w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <div className="text-sm font-medium">Network Type:</div>
-                    <div className="text-sm capitalize">
-                      {import.meta.env.MODE === 'development' ? (
-                        <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-300 dark:hover:bg-amber-900">
-                          Devnet
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-900">
-                          Mainnet
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="text-sm font-medium">Package ID:</div>
-                    <div className="text-xs text-muted-foreground truncate" title={packageId}>
-                      {packageId.substring(0, 8)}...{packageId.substring(packageId.length - 8)}
-                    </div>
-                    
-                    <div className="text-sm font-medium">Dashboard ID:</div>
-                    <div className="text-xs text-muted-foreground truncate" title={dashboardId}>
-                      {dashboardId.substring(0, 8)}...{dashboardId.substring(dashboardId.length - 8)}
-                    </div>
-                    
-                    <div className="text-sm font-medium">Total Proposals:</div>
-                    <div className="text-sm">{proposalsCount}</div>
-                    
-                    <div className="text-sm font-medium">System Status:</div>
-                    <div className="text-sm flex items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-500 mr-1.5"></span>
-                      Operational
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </TabsContent>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

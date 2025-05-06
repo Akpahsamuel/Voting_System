@@ -25,6 +25,9 @@ export default {
 			tech: ["Audiowide", "monospace"],
 		},
 		extend: {
+			screens: {
+				'xs': '480px',
+			},
 			colors: {
 				border: "hsl(var(--border))",
 				input: "hsl(var(--input))",
@@ -160,6 +163,6 @@ export default {
 					"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm1 1h38v38H1V1zm1 1h36v36H2V2z' fill='%236366f1' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E\")",
 			},
 		},
-		},
+	},
 	plugins: [tailwindcssAnimate],
 } satisfies Config;

@@ -20,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Separator } from "../ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { Badge } from "../../components/ui/badge";
+import { getNetwork } from "../../utils/networkUtils";
 
 // Form schema validation
 const formSchema = z.object({
@@ -117,8 +118,12 @@ const GrantAdmin = () => {
 
   // Helper function to determine which network to use for explorer links
   const getExplorerNetwork = () => {
-    // Use the manually selected network
-    return explorerNetwork;
+    // If user has manually selected a network, use that
+    if (explorerNetwork) {
+      return explorerNetwork;
+    }
+    // Otherwise use the current app network from networkUtils
+    return getNetwork();
   };
 
   // Fetch dashboard data to get admin addresses
