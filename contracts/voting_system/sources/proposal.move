@@ -115,41 +115,6 @@ public fun is_active(self: &Proposal): bool {
     }
 }
 
-public fun status(self: &Proposal): &ProposalStatus {
-    &self.status
-}
-
-public fun title(self: &Proposal): String {
-    self.title
-}
-
-public fun description(self: &Proposal): String {
-    self.description
-}
-
-public fun voted_yes_count(self: &Proposal): u64 {
-    self.voted_yes_count
-}
-
-public fun voted_no_count(self: &Proposal): u64 {
-    self.voted_no_count
-}
-
-public fun expiration(self: &Proposal): u64 {
-    self.expiration
-}
-
-public fun creator(self: &Proposal): address {
-    self.creator
-}
-
-public fun voters(self: &Proposal): &Table<address, bool> {
-    &self.voters
-}
-
-public fun is_private(self: &Proposal): bool {
-    self.is_private
-}
 
 // === Admin Functions ===
 
@@ -290,5 +255,43 @@ fun issue_vote_proof(proposal: &Proposal, vote_yes: bool, ctx: &mut TxContext) {
 
     transfer::transfer(proof, tx_context::sender(ctx));
 }
+
+
+public fun status(self: &Proposal): &ProposalStatus {
+    &self.status
+}
+
+public fun title(self: &Proposal): String {
+    self.title
+}
+
+public fun description(self: &Proposal): String {
+    self.description
+}
+
+public fun voted_yes_count(self: &Proposal): u64 {
+    self.voted_yes_count
+}
+
+public fun voted_no_count(self: &Proposal): u64 {
+    self.voted_no_count
+}
+
+public fun expiration(self: &Proposal): u64 {
+    self.expiration
+}
+
+public fun creator(self: &Proposal): address {
+    self.creator
+}
+
+public fun voters(self: &Proposal): &Table<address, bool> {
+    &self.voters
+}
+
+public fun is_private(self: &Proposal): bool {
+    self.is_private
+}
+
 
 }

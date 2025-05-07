@@ -152,7 +152,7 @@ function extractVoteNfts(nftRes: PaginatedObjectsResponse | undefined) {
 
 function getVoteNft(nftData: SuiObjectData | undefined | null): VoteNft {
   if (nftData?.content?.dataType !== "moveObject") {
-    return {id: {id: ""}, url: "", proposalId: ""};
+    return {id: "", url: "", proposalId: ""};
   }
 
   const { proposal_id: proposalId, url, id } = nftData.content.fields as any;

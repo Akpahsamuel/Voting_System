@@ -133,7 +133,7 @@ const ManageCandidates = ({
           transaction: tx.serialize(),
         },
         {
-          onSuccess: (result: SuiTransactionBlockResponse) => {
+          onSuccess: (result) => {
             toast.success("Candidates added successfully");
             form.reset({
               candidates: [

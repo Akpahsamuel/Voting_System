@@ -35,23 +35,21 @@ export const Proposal: FC<ProposalProps> = ({ proposal, onVoteSuccess }) => {
         ],
       });
       
-      signAndExecute({
-        transaction: tx,
-        options: {
-          showEffects: true,
-          showEvents: true,
+      signAndExecute(
+        {
+          transaction: tx.serialize(),
         },
-      },
-      {
-        onSuccess: () => {
-          toast.success("Vote successfully recorded!");
-          if (onVoteSuccess) onVoteSuccess();
-        },
-        onError: (error) => {
-          toast.error(`Error recording vote: ${error.message}`);
-          console.error("Error voting:", error);
-        },
-      });
+        {
+          onSuccess: () => {
+            toast.success("Vote successfully recorded!");
+            if (onVoteSuccess) onVoteSuccess();
+          },
+          onError: (error) => {
+            toast.error(`Error recording vote: ${error.message}`);
+            console.error("Error voting:", error);
+          },
+        }
+      );
     } catch (error) {
       console.error("Error voting:", error);
       toast.error(`Error preparing vote transaction: ${(error as Error).message}`);
