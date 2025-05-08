@@ -87,23 +87,23 @@ const Features = () => {
       
       {/* Points display like in Foreverbots */}
       <div className="mt-20 container mx-auto">
-        <div className="text-center">
-          <h3 className="text-title-medium mb-8">RANK</h3>
+        <div className="relative z-10 bg-black/80 border border-white/20 rounded-xl p-8 text-center shadow-lg">
+          <h3 className="text-title-medium mb-8 text-white">RANK</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="p-4 bg-black border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2">SECURITY</div>
+            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
+              <div className="text-achievement mb-2 text-white/80">SECURITY</div>
               <div className="text-points text-gradient">100 Points</div>
             </div>
-            <div className="p-4 bg-black border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2">SPEED</div>
+            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
+              <div className="text-achievement mb-2 text-white/80">SPEED</div>
               <div className="text-points text-gradient">80 Points</div>
             </div>
-            <div className="p-4 bg-black border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2">TRANSPARENCY</div>
+            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
+              <div className="text-achievement mb-2 text-white/80">TRANSPARENCY</div>
               <div className="text-points text-gradient">120 Points</div>
             </div>
-            <div className="p-4 bg-black border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2">ACCESSIBILITY</div>
+            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
+              <div className="text-achievement mb-2 text-white/80">ACCESSIBILITY</div>
               <div className="text-points text-gradient">90 Points</div>
             </div>
           </div>

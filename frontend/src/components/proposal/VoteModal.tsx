@@ -175,6 +175,12 @@ export const VoteModal: FC<VoteModalProps> = ({
 
         dismissToast("Transaction Successful!");
         onVote(voteYes);
+        
+        // Add a small delay to ensure the blockchain state is updated
+        setTimeout(() => {
+          // Force refetch of proposal data
+          window.location.reload();
+        }, 1000);
       },
       (error) => {
         console.error("Transaction error:", error);

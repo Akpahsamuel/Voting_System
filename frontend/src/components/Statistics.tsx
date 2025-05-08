@@ -38,24 +38,24 @@ const StatCounter = ({ value, label, icon: Icon, delay }: StatCounterProps) => {
   
   return (
     <motion.div 
-      className="glass-card p-6 text-center feature-card-hover"
+      className="p-6 text-center rounded-xl shadow-xl bg-slate-800/90 border border-slate-700 text-white hover:scale-105 transition-transform duration-200"
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: delay }}
       viewport={{ once: true, margin: "-50px" }}
     >
       <div className="flex justify-center mb-4">
-        <div className="w-14 h-14 rounded-full bg-gradient-sui flex items-center justify-center glow">
+        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
           <Icon size={28} className="text-white" />
         </div>
       </div>
       
-      <div className="text-4xl font-bold mb-2 text-gradient">
+      <div className="text-4xl font-extrabold mb-2 text-blue-300 drop-shadow-lg">
         {count.toLocaleString()}
         {label === "Transaction Success Rate" && "%"}
       </div>
       
-      <div className="text-sm text-foreground/70">{label}</div>
+      <div className="text-base text-slate-200 font-medium tracking-wide mt-1">{label}</div>
     </motion.div>
   );
 };
@@ -104,7 +104,7 @@ const Statistics = () => {
           <h2 className="text-3xl md:text-4xl font-bold mb-4 font-audiowide">
             <span className="text-gradient">Platform</span> Statistics
           </h2>
-          <p className="text-foreground/70">
+          <p className="text-white drop-shadow-sm">
             Our growing ecosystem of secure blockchain voting on the Sui network
           </p>
         </motion.div>

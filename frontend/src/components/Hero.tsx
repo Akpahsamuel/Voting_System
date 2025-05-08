@@ -95,45 +95,49 @@ const Hero = () => {
       <div className="absolute inset-0 bg-grid-pattern opacity-20 z-0"></div>
       
       <div className="container mx-auto px-4 pt-20 pb-20 relative z-10">
-        <div className="text-center max-w-3xl mx-auto">
-          <motion.h1 
-            className="text-title-large mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className="text-white">Decentralized</span>
-            <br />
-            <span className="text-gradient">Voting</span>
-          </motion.h1>
-          
-          <motion.p 
-            className="font-mono text-lg md:text-xl text-white/70 mb-10 uppercase tracking-wider"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            Secure, transparent, and immutable voting system
-          </motion.p>
-          
-          <motion.div 
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <StyledConnectButton />
+        <div className="relative text-center max-w-3xl mx-auto mb-8">
+          {/* Overlay for readability */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm rounded-xl z-0"></div>
+          <div className="relative z-10">
+            <motion.h1 
+              className="text-title-large mb-6 drop-shadow-lg"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <span className="text-white">Decentralized</span>
+              <br />
+              <span className="text-gradient">Voting</span>
+            </motion.h1>
             
-            <button className="text-command bg-transparent border border-white/30 hover:border-white hover:bg-white/10 hover:text-white transition-all duration-300 px-6 py-3 relative group overflow-hidden hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:scale-[1.02]">
-              <span className="relative z-10">LEARN_MORE</span>
+            <motion.p 
+              className="font-mono text-lg md:text-xl text-white/90 mb-10 uppercase tracking-wider drop-shadow"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              Secure, transparent, and immutable voting system
+            </motion.p>
+            
+            <motion.div 
+              className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <StyledConnectButton />
               
-              {/* Glow effect on hover */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-300 bg-gradient-radial from-white/20 to-transparent"></div>
-              
-              {/* Animated border */}
-              <div className="absolute -inset-px rounded bg-gradient-to-r from-blue-500/40 to-purple-500/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            </button>
-          </motion.div>
+              <button className="text-command bg-transparent border border-white/30 hover:border-white hover:bg-white/10 hover:text-white transition-all duration-300 px-6 py-3 relative group overflow-hidden hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:scale-[1.02]">
+                <span className="relative z-10">LEARN_MORE</span>
+                
+                {/* Glow effect on hover */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-300 bg-gradient-radial from-white/20 to-transparent"></div>
+                
+                {/* Animated border */}
+                <div className="absolute -inset-px rounded bg-gradient-to-r from-blue-500/40 to-purple-500/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </button>
+            </motion.div>
+          </div>
         </div>
         
         {/* Animated blockchain visualization */}
