@@ -149,14 +149,23 @@ const ProposalManagement: React.FC<ProposalManagementProps> = ({ adminCapId: pro
         }
 
         const fields = obj.content.fields as any;
+        const expiration = Number(fields.expiration);
+        const normalizedExpiration = normalizeTimestamp(expiration) || expiration;
+        
+        // Determine the status based on both the stored status and expiration
+        let status = fields.status.variant;
+        if (status === "Active" && normalizedExpiration < Date.now()) {
+          status = "Expired";
+        }
+
         return {
           id: obj.objectId,
           title: fields.title,
           description: fields.description,
           votedYesCount: Number(fields.voted_yes_count),
           votedNoCount: Number(fields.voted_no_count),
-          expiration: Number(fields.expiration),
-          status: fields.status.variant,
+          expiration: normalizedExpiration,
+          status: status,
           is_private: fields.is_private,
         };
       })
