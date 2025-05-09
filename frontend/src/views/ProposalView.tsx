@@ -10,6 +10,7 @@ import Navbar from "../components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import FeatureGuard from "../components/FeatureGuard";
 import { getNetwork } from "../utils/networkUtils";
+import Footer from "../components/Footer";
 
 const ProposalView = () => {
   const dashboardId = useNetworkVariable("dashboardId" as any);
@@ -173,6 +174,9 @@ const ProposalView = () => {
             </div>
           )}
         </div>
+      </div>
+      <div className="bg-white mt-[2vh]">
+        <Footer />
       </div>
     </FeatureGuard>
   )

@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import FeatureGuard from "../components/FeatureGuard";
 import { getNetwork } from "../utils/networkUtils";
 import { fetchBallotsOptimized } from "../utils/ballotUtils";
+import Footer from "../components/Footer";
 
 // Define Candidate type
 export interface Candidate {
@@ -173,6 +174,7 @@ export const BallotPage: FC = () => {
           </Tabs>
         </div>
       </div>
+      <Footer/>
     </FeatureGuard>
   );
 };

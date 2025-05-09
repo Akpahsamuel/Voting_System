@@ -1,5 +1,6 @@
 import { AdminPage } from '../pages/AdminPage';
 import Navbar from '../components/Navbar';
+import Footer from "../components/Footer";
 
 const AdminDashboard: React.FC = () => {
   return (
@@ -8,6 +9,7 @@ const AdminDashboard: React.FC = () => {
       <div className="pt-24">
         <AdminPage />
       </div>
+      <div className="bg-white mt-[2vh]"><Footer /></div>
     </div>
   );
 };

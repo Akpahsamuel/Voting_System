@@ -5,6 +5,7 @@ import { NavLink } from "react-router-dom";
 import { ConnectButton } from "@mysten/dapp-kit";
 import { Home, FileText, Wallet, ShieldCheck, BarChart2, Menu } from "lucide-react";
 import { Button } from "../components/ui/button";
+import Footer from "../components/Footer";
 
 const WalletView: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ const WalletView: React.FC = () => {
           <p className="text-white/80">Wallet connection and management features will be implemented here.</p>
         </div>
       </div>
+      <div className="bg-white mt-[2vh]"><Footer/></div>
     </div>
   );
 };
