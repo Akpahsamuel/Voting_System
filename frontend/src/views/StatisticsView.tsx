@@ -17,6 +17,7 @@ import StatisticsPanel from "../components/statistics/StatisticsPanel";
 import AdvancedAnalytics from "../components/statistics/AdvancedAnalytics";
 import BallotStatisticsPanel from "../components/statistics/BallotStatisticsPanel";
 import CombinedAnalytics from "../components/statistics/CombinedAnalytics";
+import Footer from "../components/Footer";
 
 // Register Chart.js components
 ChartJS.register(
@@ -262,6 +263,7 @@ export const StatisticsView: FC = () => {
           </Tabs>
         )}
       </div>
+      <div className="bg-white"><Footer/></div>
     </div>
   );
 };
