@@ -175,7 +175,9 @@ const ProposalView = () => {
           )}
         </div>
       </div>
-      <Footer/>
+      <div className="bg-white mt-[2vh]">
+        <Footer />
+      </div>
     </FeatureGuard>
   )
 };
