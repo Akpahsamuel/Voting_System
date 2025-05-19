@@ -18,7 +18,7 @@ const FeatureCard = ({ icon: Icon, title, description, delay }: FeatureCardProps
         <Icon size={24} className="text-white" />
       </div>
       
-      <h3 className="text-tech text-white mb-3">
+      <h3 className="text-tech text-white mb-3 sm:ml-[-1.3vw] ml-[-4vw]">
         {title}
       </h3>
       
@@ -85,29 +85,66 @@ const Features = () => {
         </div>
       </div>
       
-      {/* Points display like in Foreverbots */}
-      <div className="mt-20 container mx-auto">
-        <div className="relative z-10 bg-black/80 border border-white/20 rounded-xl p-8 text-center shadow-lg">
-          <h3 className="text-title-medium mb-8 text-white">RANK</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2 text-white/80">SECURITY</div>
-              <div className="text-points text-gradient">100 Points</div>
-            </div>
-            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2 text-white/80">SPEED</div>
-              <div className="text-points text-gradient">80 Points</div>
-            </div>
-            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2 text-white/80">TRANSPARENCY</div>
-              <div className="text-points text-gradient">120 Points</div>
-            </div>
-            <div className="p-4 bg-black/90 border border-white/20 rounded-lg text-center">
-              <div className="text-achievement mb-2 text-white/80">ACCESSIBILITY</div>
-              <div className="text-points text-gradient">90 Points</div>
-            </div>
+      <div className="mt-20 container mx-auto px-4">
+        <motion.div 
+          className="relative z-10 bg-black/80 border border-white/20 rounded-xl p-6 md:p-8 text-center shadow-lg overflow-hidden"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true, margin: "-50px" }}
+        >
+          <h3 className="text-title-medium mb-6 md:mb-8 text-white">RANK</h3>
+          
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            {/* SECURITY */}
+            <motion.div 
+              className="p-4 bg-black/90 border border-white/20 rounded-lg text-center"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              viewport={{ once: true }}
+            >
+              <div className="font-mono text-sm md:text-base mb-2 text-white/80 tracking-wider">SECURITY</div>
+              <div className="text-xl md:text-2xl lg:text-3xl font-bold text-gradient">100 Points</div>
+            </motion.div>
+            
+            {/* SPEED */}
+            <motion.div 
+              className="p-4 bg-black/90 border border-white/20 rounded-lg text-center"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
+              <div className="font-mono text-sm md:text-base mb-2 text-white/80 tracking-wider">SPEED</div>
+              <div className="text-xl md:text-2xl lg:text-3xl font-bold text-gradient">80 Points</div>
+            </motion.div>
+            
+            {/* TRANSPARENCY */}
+            <motion.div 
+              className="p-4 bg-black/90 border border-white/20 rounded-lg text-center"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
+              viewport={{ once: true }}
+            >
+              <div className="font-mono text-sm md:text-base mb-2 text-white/80 tracking-wider">TRANSPARENCY</div>
+              <div className="text-xl md:text-2xl lg:text-3xl font-bold text-gradient">120 Points</div>
+            </motion.div>
+            
+            {/* ACCESSIBILITY */}
+            <motion.div 
+              className="p-4 bg-black/90 border border-white/20 rounded-lg text-center"
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.4 }}
+              viewport={{ once: true }}
+            >
+              <div className="font-mono text-sm md:text-base mb-2 text-white/80 tracking-wider">ACCESSIBILITY</div>
+              <div className="text-xl md:text-2xl lg:text-3xl font-bold text-gradient">90 Points</div>
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
