@@ -42,7 +42,7 @@ const HowItWorks = () => {
           <h2 className="text-3xl md:text-4xl font-bold mb-4 font-audiowide">
             <span className="text-gradient">How Our</span> Voting System Works
           </h2>
-          <p className="text-foreground/70">
+          <p className="text-[#6060e6]">
             Our platform makes blockchain voting simple and intuitive while maintaining
             the highest standards of security and transparency.
           </p>
@@ -88,7 +88,7 @@ const HowItWorks = () => {
                   
                   {/* Content */}
                   <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                  <p className="text-foreground/70">{step.description}</p>
+                  <p className="text-[#6060e6]">{step.description}</p>
                 </motion.div>
               );
             })}
