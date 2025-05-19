@@ -169,14 +169,14 @@ const Navbar = () => {
           </div>
           
           {/* Connect Button (Simplified on very small screens) */}
-          <div className="overflow-hidden shrink-0">
+          <div className="overflow-hidden shrink-0 ml-[1.5vw]">
             <ConnectButton className="transition-transform hover:scale-105 duration-300" />
           </div>
           
           {/* Mobile Menu Button */}
           <button 
             ref={menuButtonRef}
-            className="ml-1 md:hidden p-2 text-white hover:text-blue-300 hover:bg-white/10 rounded-md transition-colors duration-300"
+            className="ml-[1vw] md:hidden text-white hover:text-blue-300 hover:bg-white/10 rounded-md transition-colors duration-300"
             onClick={toggleMobileMenu}
             aria-label="Toggle menu"
           >
