@@ -20,7 +20,11 @@ createRoot(document.getElementById('root')!).render(
         */}
         {/* @ts-ignore: Type incompatibility with networkConfig */}
         <SuiClientProvider defaultNetwork={getNetwork()} networks={networkConfig}>
-          <WalletProvider autoConnect>
+          <WalletProvider 
+          autoConnect
+          slushWallet={{
+            name: 'SuiVote',
+          }}>
               <App />
           </WalletProvider>
         </SuiClientProvider>
