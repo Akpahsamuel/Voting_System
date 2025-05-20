@@ -188,7 +188,7 @@ const Hero = () => {
         </motion.div>
         
         <motion.div 
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+          className="absolute bottom-8 left-1/3 sm:left-1/2 -translate-x-1/2"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2, duration: 0.5 }}
@@ -224,11 +224,29 @@ const Hero = () => {
       
       {/* Repeated text marquee like in Foreverbots */}
       <div className="absolute bottom-0 w-full overflow-hidden py-4 bg-black">
-        <div className="text-repeated-marquee animate-flow">
-          SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X
-          SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X
-        </div>
-      </div>
+  <div className="marquee whitespace-nowrap text-[#6060e6] font-mono text-sm sm:text-base">
+    SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X
+    SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X SECURE VOTING X BLOCKCHAIN VERIFIED X SUI POWERED X
+  </div>
+  <style>
+    {`
+      .marquee {
+        display: inline-block;
+        white-space: nowrap;
+        animation: scroll-left 30s linear infinite;
+      }
+
+      @keyframes scroll-left {
+        0% {
+          transform: translateX(100%);
+        }
+        100% {
+          transform: translateX(-100%);
+        }
+      }
+    `}
+  </style>
+</div>
     </section>
   );
 };
