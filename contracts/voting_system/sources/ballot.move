@@ -9,14 +9,22 @@ module voting_system::ballot {
     use voting_system::dashboard::{Self, AdminCap, SuperAdminCap, Dashboard};
 
     // Error codes
-    const EDuplicateVote: u64 = 0;
-    const EBallotDelisted: u64 = 1;
-    const EBallotExpired: u64 = 2;
-    const ECandidateNotFound: u64 = 3;
-    const ECandidateAlreadyExists: u64 = 4;
-    const ENotRegisteredVoter: u64 = 5;
-    const EMaxCandidatesReached: u64 = 6;
-    const ENotSuperAdmin: u64 = 7;
+    #[error]
+    const EDuplicateVote: vector<u8> = b"User has already cast a vote for this ballot";
+    #[error]
+    const EBallotDelisted: vector<u8> = b"This ballot has been delisted and is no longer accepting votes";
+    #[error]
+    const EBallotExpired: vector<u8> = b"This ballot has expired and is no longer accepting votes";
+    #[error]
+    const ECandidateNotFound: vector<u8> = b"The requested candidate does not exist in this ballot";
+    #[error]
+    const ECandidateAlreadyExists: vector<u8> = b"A candidate with this ID already exists in the ballot";
+    #[error]
+    const ENotRegisteredVoter: vector<u8> = b"User is not registered as an eligible voter for this private ballot";
+    #[error]
+    const EMaxCandidatesReached: vector<u8> = b"The maximum number of candidates for this ballot has been reached";
+    #[error]
+    const ENotSuperAdmin: vector<u8> = b"This operation requires super admin privileges";
 
     // Maximum number of candidates per ballot
     const MAX_CANDIDATES: u64 = 20;

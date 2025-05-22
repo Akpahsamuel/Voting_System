@@ -10,10 +10,14 @@ use sui::event;
 // use sui::tx_context::{Self, TxContext};
 use voting_system::dashboard::{Self, AdminCap, SuperAdminCap, Dashboard};
 
-const EDuplicateVote: u64 = 0;
-const EProposalDelisted: u64 = 1;
-const EProposalExpired: u64 = 2;
-const ENotRegisteredVoter: u64 = 7;
+#[error]
+const EDuplicateVote: vector<u8> = b"User has already cast a vote for this proposal";
+#[error]
+const EProposalDelisted: vector<u8> = b"This proposal has been delisted and is no longer accepting votes";
+#[error]
+const EProposalExpired: vector<u8> = b"This proposal has expired and is no longer accepting votes";
+#[error]
+const ENotRegisteredVoter: vector<u8> = b"User is not registered as an eligible voter for this private proposal";
 
 public enum ProposalStatus has store, drop {
     Active,

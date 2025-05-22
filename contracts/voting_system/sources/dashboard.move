@@ -8,15 +8,24 @@ use sui::dynamic_field as df;
 
 //errors codes
 
-const EDuplicateProposal: u64 = 0;
-const EInvalidOtw: u64 = 1;
-const ENotSuperAdmin: u64 = 2;
-const ESuperAdminRequired: u64 = 3;
-const ECapRevoked: u64 = 4;
-const EAdminNotAuthorized: u64 = 5;
-const ECannotRevokeDeployer: u64 = 6;
-const ENotRegisteredVoter: u64 = 7;
-const ERegistryNotFound: u64 = 8;
+#[error]
+const EDuplicateProposal: vector<u8> = b"This proposal ID already exists in the system";
+#[error]
+const EInvalidOtw: vector<u8> = b"Invalid one-time witness detected during initialization";
+#[error]
+const ENotSuperAdmin: vector<u8> = b"The operation requires super admin privileges which the caller doesn't have";
+#[error]
+const ESuperAdminRequired: vector<u8> = b"This action can only be performed by a super administrator";
+#[error]
+const ECapRevoked: vector<u8> = b"The provided capability has been revoked and is no longer valid";
+#[error]
+const EAdminNotAuthorized: vector<u8> = b"The administrator is not authorized to perform this action";
+#[error]
+const ECannotRevokeDeployer: vector<u8> = b"Cannot revoke privileges from the deployer/creator of the contract";
+#[error]
+const ENotRegisteredVoter: vector<u8> = b"The address is not registered as an eligible voter for this proposal";
+#[error]
+const ERegistryNotFound: vector<u8> = b"Voter registry not found or the proposal is not configured as private";
 
 /// Type to use as a key for dynamic fields storing voter registries
 public struct VoterRegistryKey has copy, drop, store { proposal_id: ID }
@@ -437,7 +446,7 @@ public entry fun grant_super_admin(super_admin_cap: &SuperAdminCap, self: &mut D
     
     // Add to superadmin set
     if (!vec_set::contains(&self.super_admin_addresses, &new_super_admin)) {
-        vec_set::insert(&mut self.super_admin_addresses, new_super_admin);
+        vec_set::insert(&mut self.super_admin_addresses, &new_super_admin);
     };
 
     // Create and transfer SuperAdminCap to the new superadmin
