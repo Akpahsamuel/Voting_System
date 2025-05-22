@@ -446,7 +446,7 @@ public entry fun grant_super_admin(super_admin_cap: &SuperAdminCap, self: &mut D
     
     // Add to superadmin set
     if (!vec_set::contains(&self.super_admin_addresses, &new_super_admin)) {
-        vec_set::insert(&mut self.super_admin_addresses, &new_super_admin);
+        vec_set::insert(&mut self.super_admin_addresses, new_super_admin);
     };
 
     // Create and transfer SuperAdminCap to the new superadmin
